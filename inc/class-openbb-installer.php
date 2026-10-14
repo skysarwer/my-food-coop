@@ -6,17 +6,17 @@
  * the next request. Activation hooks don't run on plugin updates, hence the version
  * check on every load.
  *
- * @package My_Food_Coop
+ * @package Open_Bulk_Buying
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class MFCOOP_Installer {
+class OPENBB_Installer {
 
-	const DB_VERSION        = '1';
-	const DB_VERSION_OPTION = 'mfcoop_db_version';
+	const DB_VERSION        = '2';
+	const DB_VERSION_OPTION = 'openbb_db_version';
 
 	public static function maybe_upgrade(): void {
 		if ( self::DB_VERSION !== get_option( self::DB_VERSION_OPTION ) ) {
@@ -26,10 +26,10 @@ class MFCOOP_Installer {
 
 	public static function schema(): array {
 		return array_merge(
-			MFCOOP_Cycles::schema(),
-			MFCOOP_Orders::schema(),
-			MFCOOP_Inventory::schema(),
-			MFCOOP_Rules::schema()
+			OPENBB_Cycles::schema(),
+			OPENBB_Orders::schema(),
+			OPENBB_Inventory::schema(),
+			OPENBB_Rules::schema()
 		);
 	}
 
@@ -52,7 +52,8 @@ class MFCOOP_Installer {
 			}
 		}
 
-		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
+		// Autoloaded because maybe_upgrade() reads it on every request.
+		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, true );
 
 		return true;
 	}

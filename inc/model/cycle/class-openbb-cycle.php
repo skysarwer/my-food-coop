@@ -2,14 +2,14 @@
 /**
  * Cycle record.
  *
- * @package My_Food_Coop
+ * @package Open_Bulk_Buying
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class MFCOOP_Cycle extends MFCOOP_Entity {
+class OPENBB_Cycle extends OPENBB_Entity {
 
 	const STATUS_SETUP        = 'setup';
 	const STATUS_ORDERING     = 'ordering';
@@ -35,7 +35,7 @@ class MFCOOP_Cycle extends MFCOOP_Entity {
 	protected function cast(): void {
 		$this->id                  = (int) $this->id;
 		$this->pickup_location     = (string) $this->pickup_location;
-		$this->pickup_instructions = mfcoop_normalize_localized( self::decode_json( $this->pickup_instructions ) );
+		$this->pickup_instructions = openbb_normalize_localized( self::decode_json( $this->pickup_instructions ) );
 	}
 
 	public function is_active(): bool {
@@ -57,6 +57,6 @@ class MFCOOP_Cycle extends MFCOOP_Entity {
 	}
 
 	public function get_pickup_instructions( ?string $language = null ): string {
-		return mfcoop_localized( $this->pickup_instructions, $language );
+		return openbb_localized( $this->pickup_instructions, $language );
 	}
 }

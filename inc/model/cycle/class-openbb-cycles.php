@@ -2,20 +2,20 @@
 /**
  * Cycle queries. Datetimes are UTC.
  *
- * @package My_Food_Coop
+ * @package Open_Bulk_Buying
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class MFCOOP_Cycles {
+class OPENBB_Cycles {
 
 	public static function schema(): array {
 		global $wpdb;
 
 		return array(
-			$wpdb->mfcoop_cycles => "CREATE TABLE {$wpdb->mfcoop_cycles} (
+			$wpdb->openbb_cycles => "CREATE TABLE {$wpdb->openbb_cycles} (
 				id bigint(20) unsigned NOT NULL auto_increment,
 				name varchar(191) NOT NULL default '',
 				status varchar(20) NOT NULL default 'setup',
@@ -34,30 +34,30 @@ class MFCOOP_Cycles {
 		);
 	}
 
-	public static function get( int $id ): ?MFCOOP_Cycle {
+	public static function get( int $id ): ?OPENBB_Cycle {
 		global $wpdb;
 
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->mfcoop_cycles} WHERE id = %d", $id ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->openbb_cycles} WHERE id = %d", $id ), ARRAY_A );
 
-		return $row ? new MFCOOP_Cycle( $row ) : null;
+		return $row ? new OPENBB_Cycle( $row ) : null;
 	}
 
 	/**
 	 * Cycles whose submitted orders currently reserve stock.
 	 *
-	 * @return MFCOOP_Cycle[]
+	 * @return OPENBB_Cycle[]
 	 */
 	public static function get_active(): array {
 		global $wpdb;
 
-		$statuses     = MFCOOP_Cycle::ACTIVE_STATUSES;
+		$statuses     = OPENBB_Cycle::ACTIVE_STATUSES;
 		$placeholders = implode( ',', array_fill( 0, count( $statuses ), '%s' ) );
 
-		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->mfcoop_cycles} WHERE status IN ({$placeholders}) ORDER BY id", ...$statuses ), ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->openbb_cycles} WHERE status IN ({$placeholders}) ORDER BY id", ...$statuses ), ARRAY_A );
 
 		return array_map(
-			static function ( array $row ): MFCOOP_Cycle {
-				return new MFCOOP_Cycle( $row );
+			static function ( array $row ): OPENBB_Cycle {
+				return new OPENBB_Cycle( $row );
 			},
 			(array) $rows
 		);

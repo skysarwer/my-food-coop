@@ -2,14 +2,14 @@
 /**
  * A WordPress user with co-op membership meta. Datetimes are UTC.
  *
- * @package My_Food_Coop
+ * @package Open_Bulk_Buying
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class MFCOOP_Member extends MFCOOP_Entity {
+class OPENBB_Member extends OPENBB_Entity {
 
 	const STATUS_ACTIVE   = 'active';
 	const STATUS_INACTIVE = 'inactive';
@@ -42,8 +42,8 @@ class MFCOOP_Member extends MFCOOP_Entity {
 			'last_name'    => $user->last_name,
 			'display_name' => $user->display_name,
 		);
-		foreach ( array_keys( mfcoop_member_meta_fields() ) as $field ) {
-			$data[ $field ] = get_user_meta( $user->ID, MFCOOP_META_PREFIX . $field, true );
+		foreach ( array_keys( openbb_member_meta_fields() ) as $field ) {
+			$data[ $field ] = get_user_meta( $user->ID, OPENBB_META_PREFIX . $field, true );
 		}
 
 		return '' === $data['membership_status'] ? null : new self( $data );
@@ -61,7 +61,7 @@ class MFCOOP_Member extends MFCOOP_Entity {
 	}
 
 	/**
-	 * $required_version_id comes from MFCOOP_Rules::get_required_version_id(); 0 means no rules are published yet.
+	 * $required_version_id comes from OPENBB_Rules::get_required_version_id(); 0 means no rules are published yet.
 	 */
 	public function has_accepted_rules( int $required_version_id ): bool {
 		return $required_version_id > 0 && $this->rules_version >= $required_version_id;

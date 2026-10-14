@@ -2,24 +2,25 @@
 /**
  * Order and order line queries. Datetimes are UTC.
  *
- * @package My_Food_Coop
+ * @package Open_Bulk_Buying
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class MFCOOP_Orders {
+class OPENBB_Orders {
 
 	public static function schema(): array {
 		global $wpdb;
 
 		return array(
-			$wpdb->mfcoop_orders      => "CREATE TABLE {$wpdb->mfcoop_orders} (
+			$wpdb->openbb_orders      => "CREATE TABLE {$wpdb->openbb_orders} (
 				id bigint(20) unsigned NOT NULL auto_increment,
 				cycle_id bigint(20) unsigned NOT NULL,
 				user_id bigint(20) unsigned NOT NULL,
 				status varchar(20) NOT NULL default 'draft',
+				language varchar(20) NOT NULL default '',
 				currency char(3) NOT NULL default '',
 				subtotal bigint(20) NOT NULL default 0,
 				container_credit bigint(20) NOT NULL default 0,
@@ -43,14 +44,16 @@ class MFCOOP_Orders {
 				KEY aid_status (aid_status)
 			) {$wpdb->get_charset_collate()};",
 
-			$wpdb->mfcoop_order_lines => "CREATE TABLE {$wpdb->mfcoop_order_lines} (
+			$wpdb->openbb_order_lines => "CREATE TABLE {$wpdb->openbb_order_lines} (
 				id bigint(20) unsigned NOT NULL auto_increment,
 				order_id bigint(20) unsigned NOT NULL,
 				product_id bigint(20) unsigned NOT NULL,
 				source varchar(20) NOT NULL default 'member',
 				product_name varchar(255) NOT NULL default '',
+				brand varchar(255) NOT NULL default '',
 				unit_amount decimal(12,3) NOT NULL default 1,
 				unit_type varchar(20) NOT NULL default 'unit',
+				base_per_unit decimal(12,3) NOT NULL default 1,
 				unit_price bigint(20) NOT NULL default 0,
 				container_charge bigint(20) NOT NULL default 0,
 				own_container tinyint(1) NOT NULL default 0,
@@ -67,33 +70,33 @@ class MFCOOP_Orders {
 		);
 	}
 
-	public static function get( int $id ): ?MFCOOP_Order {
+	public static function get( int $id ): ?OPENBB_Order {
 		global $wpdb;
 
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->mfcoop_orders} WHERE id = %d", $id ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->openbb_orders} WHERE id = %d", $id ), ARRAY_A );
 
-		return $row ? new MFCOOP_Order( $row ) : null;
+		return $row ? new OPENBB_Order( $row ) : null;
 	}
 
-	public static function get_for_member( int $cycle_id, int $user_id ): ?MFCOOP_Order {
+	public static function get_for_member( int $cycle_id, int $user_id ): ?OPENBB_Order {
 		global $wpdb;
 
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->mfcoop_orders} WHERE cycle_id = %d AND user_id = %d", $cycle_id, $user_id ), ARRAY_A );
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->openbb_orders} WHERE cycle_id = %d AND user_id = %d", $cycle_id, $user_id ), ARRAY_A );
 
-		return $row ? new MFCOOP_Order( $row ) : null;
+		return $row ? new OPENBB_Order( $row ) : null;
 	}
 
 	/**
-	 * @return MFCOOP_Order_Line[]
+	 * @return OPENBB_Order_Line[]
 	 */
 	public static function get_lines( int $order_id ): array {
 		global $wpdb;
 
-		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->mfcoop_order_lines} WHERE order_id = %d ORDER BY id", $order_id ), ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->openbb_order_lines} WHERE order_id = %d ORDER BY id", $order_id ), ARRAY_A );
 
 		return array_map(
-			static function ( array $row ): MFCOOP_Order_Line {
-				return new MFCOOP_Order_Line( $row );
+			static function ( array $row ): OPENBB_Order_Line {
+				return new OPENBB_Order_Line( $row );
 			},
 			(array) $rows
 		);

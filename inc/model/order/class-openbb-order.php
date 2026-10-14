@@ -1,15 +1,16 @@
 <?php
 /**
  * One member's order for one cycle. Amounts are integer minor units (e.g. cents).
+ * language is the member's language when the order was submitted; line snapshots use it.
  *
- * @package My_Food_Coop
+ * @package Open_Bulk_Buying
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class MFCOOP_Order extends MFCOOP_Entity {
+class OPENBB_Order extends OPENBB_Entity {
 
 	const STATUS_DRAFT     = 'draft';
 	const STATUS_SUBMITTED = 'submitted';
@@ -25,6 +26,7 @@ class MFCOOP_Order extends MFCOOP_Entity {
 	public $cycle_id         = 0;
 	public $user_id          = 0;
 	public $status           = self::STATUS_DRAFT;
+	public $language         = '';
 	public $currency         = '';
 	public $subtotal         = 0;
 	public $container_credit = 0;
@@ -48,6 +50,7 @@ class MFCOOP_Order extends MFCOOP_Entity {
 		$this->id               = (int) $this->id;
 		$this->cycle_id         = (int) $this->cycle_id;
 		$this->user_id          = (int) $this->user_id;
+		$this->language         = (string) $this->language;
 		$this->subtotal         = (int) $this->subtotal;
 		$this->container_credit = (int) $this->container_credit;
 		$this->donation         = (int) $this->donation;
@@ -60,16 +63,36 @@ class MFCOOP_Order extends MFCOOP_Entity {
 	}
 
 	/**
-	 * @return MFCOOP_Order_Line[]
+	 * @return OPENBB_Order_Line[]
 	 */
 	public function get_lines(): array {
 		if ( null === $this->lines ) {
-			$this->lines = $this->id ? MFCOOP_Orders::get_lines( $this->id ) : array();
+			$this->lines = $this->id ? OPENBB_Orders::get_lines( $this->id ) : array();
 		}
 		return $this->lines;
 	}
 
 	public function is_collected(): bool {
 		return null !== $this->collected_at;
+	}
+
+	/**
+	 * Recomputes subtotal, container_credit and total from the lines; call before
+	 * every save so the stored amounts never drift from the lines. Approved aid can
+	 * reduce the amount owed for goods to zero but not below, and never offsets the donation.
+	 *
+	 * @param OPENBB_Order_Line[]|null $lines Defaults to the saved lines.
+	 */
+	public function recalculate_totals( ?array $lines = null ): void {
+		$subtotal         = 0;
+		$container_credit = 0;
+		foreach ( $lines ?? $this->get_lines() as $line ) {
+			$subtotal         += $line->calculate_total();
+			$container_credit += $line->calculate_container_credit();
+		}
+
+		$this->subtotal         = $subtotal;
+		$this->container_credit = $container_credit;
+		$this->total            = max( 0, $subtotal - $container_credit - $this->aid_approved ) + $this->donation;
 	}
 }

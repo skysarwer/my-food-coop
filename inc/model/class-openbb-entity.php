@@ -2,14 +2,14 @@
 /**
  * Base class for records: hydrates public fields from a database row, then casts them.
  *
- * @package My_Food_Coop
+ * @package Open_Bulk_Buying
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-abstract class MFCOOP_Entity {
+abstract class OPENBB_Entity {
 
 	public function __construct( array $data = array() ) {
 		// Subclass private state (e.g. lazy-loaded relations) isn't visible here, so it's never hydrated.
