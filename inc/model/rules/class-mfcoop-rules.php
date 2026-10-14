@@ -1,0 +1,178 @@
+<?php
+/**
+ * Co-op rules: an editable draft (option) and an append-only table of published versions.
+ *
+ * Members store the id of the version they accepted, and are current when it is at
+ * least the latest version that requires re-acceptance. Versions published with
+ * requires_reacceptance = false (e.g. typo fixes, translation-only changes) replace
+ * the displayed rules without invalidating earlier acceptances. Datetimes are UTC.
+ *
+ * @package My_Food_Coop
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+class MFCOOP_Rules {
+
+	const DRAFT_OPTION = 'mfcoop_rules_draft';
+
+	public static function schema(): array {
+		global $wpdb;
+
+		return array(
+			$wpdb->mfcoop_rules_versions => "CREATE TABLE {$wpdb->mfcoop_rules_versions} (
+				id bigint(20) unsigned NOT NULL auto_increment,
+				content longtext NOT NULL,
+				content_hash char(32) NOT NULL,
+				requires_reacceptance tinyint(1) NOT NULL default 1,
+				published_by bigint(20) unsigned NOT NULL default 0,
+				published_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				KEY requires_reacceptance (requires_reacceptance)
+			) {$wpdb->get_charset_collate()};",
+		);
+	}
+
+	/**
+	 * Sanitizes a localized HTML map and drops empty translations so equivalent content hashes identically.
+	 */
+	public static function normalize_content( $content ): array {
+		$content = array_filter(
+			mfcoop_sanitize_localized_html( $content ),
+			static function ( string $text, string $language ): bool {
+				return 'default' === $language || '' !== trim( $text );
+			},
+			ARRAY_FILTER_USE_BOTH
+		);
+		ksort( $content );
+
+		return $content;
+	}
+
+	public static function hash_content( $content ): string {
+		return md5( (string) wp_json_encode( self::normalize_content( $content ) ) );
+	}
+
+	public static function get( int $id ): ?MFCOOP_Rules_Version {
+		global $wpdb;
+
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->mfcoop_rules_versions} WHERE id = %d", $id ), ARRAY_A );
+
+		return $row ? new MFCOOP_Rules_Version( $row ) : null;
+	}
+
+	/**
+	 * The rules currently shown to members; null until the first version is published.
+	 */
+	public static function get_latest(): ?MFCOOP_Rules_Version {
+		global $wpdb;
+
+		$row = $wpdb->get_row( "SELECT * FROM {$wpdb->mfcoop_rules_versions} ORDER BY id DESC LIMIT 1", ARRAY_A );
+
+		return $row ? new MFCOOP_Rules_Version( $row ) : null;
+	}
+
+	/**
+	 * Members must have accepted this version id or a later one. 0 when nothing is published.
+	 */
+	public static function get_required_version_id(): int {
+		global $wpdb;
+
+		return (int) $wpdb->get_var( "SELECT MAX(id) FROM {$wpdb->mfcoop_rules_versions} WHERE requires_reacceptance = 1" );
+	}
+
+	/**
+	 * @return MFCOOP_Rules_Version[] Newest first.
+	 */
+	public static function get_versions(): array {
+		global $wpdb;
+
+		$rows = $wpdb->get_results( "SELECT * FROM {$wpdb->mfcoop_rules_versions} ORDER BY id DESC", ARRAY_A );
+
+		return array_map(
+			static function ( array $row ): MFCOOP_Rules_Version {
+				return new MFCOOP_Rules_Version( $row );
+			},
+			(array) $rows
+		);
+	}
+
+	/**
+	 * The draft being edited; starts from the latest published content.
+	 */
+	public static function get_draft(): array {
+		$draft = get_option( self::DRAFT_OPTION, null );
+		if ( is_array( $draft ) ) {
+			return self::normalize_content( $draft );
+		}
+
+		$latest = self::get_latest();
+
+		return $latest ? $latest->content : self::normalize_content( array() );
+	}
+
+	public static function save_draft( $content ): bool {
+		$content = self::normalize_content( $content );
+
+		return get_option( self::DRAFT_OPTION, null ) === $content || update_option( self::DRAFT_OPTION, $content, false );
+	}
+
+	public static function has_unpublished_changes(): bool {
+		$latest = self::get_latest();
+		$draft  = self::get_draft();
+
+		return $latest ? self::hash_content( $draft ) !== $latest->content_hash : '' !== trim( $draft['default'] );
+	}
+
+	/**
+	 * Publishes the draft as a new version.
+	 *
+	 * The first version always requires acceptance; translation-only changes never do.
+	 * Republishing identical content returns the latest version, unless it asks to
+	 * require re-acceptance of a version that didn't.
+	 *
+	 * @return MFCOOP_Rules_Version|WP_Error
+	 */
+	public static function publish( bool $requires_reacceptance, int $user_id ) {
+		global $wpdb;
+
+		$content = self::get_draft();
+		if ( '' === trim( $content['default'] ) ) {
+			return new WP_Error( 'mfcoop_rules_empty', __( 'The rules need default text before they can be published.', 'my-food-coop' ) );
+		}
+
+		$hash   = self::hash_content( $content );
+		$latest = self::get_latest();
+
+		if ( ! $latest ) {
+			$requires_reacceptance = true;
+		} elseif ( $hash === $latest->content_hash ) {
+			if ( ! $requires_reacceptance || $latest->requires_reacceptance ) {
+				return $latest;
+			}
+		} elseif ( $content['default'] === $latest->content['default'] ) {
+			$requires_reacceptance = false;
+		}
+
+		$inserted = $wpdb->insert(
+			$wpdb->mfcoop_rules_versions,
+			array(
+				'content'               => wp_json_encode( $content ),
+				'content_hash'          => $hash,
+				'requires_reacceptance' => (int) $requires_reacceptance,
+				'published_by'          => $user_id,
+				'published_at'          => current_time( 'mysql', true ),
+			),
+			array( '%s', '%s', '%d', '%d', '%s' )
+		);
+
+		$version = $inserted ? self::get( (int) $wpdb->insert_id ) : null;
+		if ( ! $version ) {
+			return new WP_Error( 'mfcoop_rules_publish_failed', __( 'The rules could not be published.', 'my-food-coop' ) );
+		}
+
+		return $version;
+	}
+}
