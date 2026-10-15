@@ -48,6 +48,8 @@ require_once OPENBB_PLUGIN_DIR . 'inc/model/rules/class-openbb-rules.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/access/class-openbb-access.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/access/user-profile.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/class-openbb-installer.php';
+require_once OPENBB_PLUGIN_DIR . 'inc/class-openbb-maintenance.php';
+require_once OPENBB_PLUGIN_DIR . 'inc/admin/class-openbb-settings.php';
 
 register_activation_hook( __FILE__, array( 'OPENBB_Installer', 'install' ) );
 add_action( 'plugins_loaded', array( 'OPENBB_Installer', 'maybe_upgrade' ) );
@@ -59,6 +61,7 @@ add_filter( 'manage_users_columns', 'openbb_user_access_column' );
 add_filter( 'manage_users_custom_column', 'openbb_user_access_column_value', 10, 3 );
 add_action( 'init', 'openbb_register_product_post_type' );
 add_action( 'init', 'openbb_register_member_meta' );
+OPENBB_Settings::register_hooks();
 add_action( 'set_object_terms', 'openbb_enforce_single_term', 10, 4 );
 add_filter( 'add_post_metadata', 'openbb_guard_product_unit_meta', 10, 4 );
 add_filter( 'update_post_metadata', 'openbb_guard_product_unit_meta', 10, 4 );

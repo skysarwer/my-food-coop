@@ -28,6 +28,40 @@ abstract class OPENBB_Entity {
 		return get_object_vars( $this );
 	}
 
+	/**
+	 * Inserts or updates a row for entities whose database representation is flat.
+	 *
+	 * Subclasses remain responsible for selecting columns and formats; JSON-backed
+	 * fields and aggregate records need model-specific persistence.
+	 */
+	protected function save_row( string $table, array $data, array $formats = array() ): bool {
+		global $wpdb;
+
+		if ( empty( $this->id ) ) {
+			if ( false === $wpdb->insert( $table, $data, $formats ?: null ) ) {
+				return false;
+			}
+
+			$this->id = (int) $wpdb->insert_id;
+
+			return true;
+		}
+
+		$id      = (int) $this->id;
+		$updated = $wpdb->update( $table, $data, array( 'id' => $id ), $formats ?: null, array( '%d' ) );
+		if ( false === $updated ) {
+			return false;
+		}
+
+		return 0 !== $updated || null !== $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$table} WHERE id = %d", $id ) );
+	}
+
+	protected function delete_row( string $table ): bool {
+		global $wpdb;
+
+		return ! empty( $this->id ) && 1 === $wpdb->delete( $table, array( 'id' => (int) $this->id ), array( '%d' ) );
+	}
+
 	protected static function nullable_int( $value ): ?int {
 		return null === $value || '' === $value ? null : (int) $value;
 	}

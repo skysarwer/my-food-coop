@@ -119,6 +119,13 @@ class OPENBB_Rules {
 		return get_option( self::DRAFT_OPTION, null ) === $content || update_option( self::DRAFT_OPTION, $content, false );
 	}
 
+	/**
+	 * Discards unpublished edits; published versions remain immutable.
+	 */
+	public static function discard_draft(): bool {
+		return false === get_option( self::DRAFT_OPTION, false ) || delete_option( self::DRAFT_OPTION );
+	}
+
 	public static function has_unpublished_changes(): bool {
 		$latest = self::get_latest();
 		$draft  = self::get_draft();

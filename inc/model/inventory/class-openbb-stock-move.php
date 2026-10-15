@@ -43,6 +43,37 @@ class OPENBB_Stock_Move extends OPENBB_Entity {
 	}
 
 	/**
+	 * Appends this move to the stock ledger. Existing moves are immutable.
+	 */
+	public function save(): bool {
+		global $wpdb;
+
+		if ( $this->id || ! $this->product_id || OPENBB_PRODUCT_POST_TYPE !== get_post_type( $this->product_id ) ) {
+			return false;
+		}
+
+		$this->created_at = $this->created_at ?: current_time( 'mysql', true );
+
+		return $this->save_row(
+			$wpdb->openbb_stock_moves,
+			array(
+				'product_id'  => $this->product_id,
+				'quantity'    => $this->quantity,
+				'unit_amount' => $this->unit_amount,
+				'unit_type'   => $this->unit_type,
+				'reason'      => $this->reason,
+				'cycle_id'    => $this->cycle_id,
+				'order_id'    => $this->order_id,
+				'user_id'     => $this->user_id,
+				'request_key' => $this->request_key,
+				'note'        => $this->note,
+				'created_at'  => $this->created_at,
+			),
+			array( '%d', '%f', '%f', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s' )
+		);
+	}
+
+	/**
 	 * The quantity in selling units, e.g. 20 for 1000 g sold per 50 g.
 	 */
 	public function get_unit_quantity(): float {

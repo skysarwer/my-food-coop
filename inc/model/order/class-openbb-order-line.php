@@ -59,6 +59,92 @@ class OPENBB_Order_Line extends OPENBB_Entity {
 		$this->line_total       = (int) $this->line_total;
 	}
 
+	/**
+	 * Persists this line and keeps the parent order totals in sync.
+	 */
+	public function save(): bool {
+		global $wpdb;
+
+		$order = OPENBB_Orders::get( $this->order_id );
+		if ( ! $order ) {
+			return false;
+		}
+
+		$now = current_time( 'mysql', true );
+		if ( ! $this->created_at ) {
+			$this->created_at = $now;
+		}
+		$this->updated_at = $now;
+		$this->line_total = $this->calculate_total();
+
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			return false;
+		}
+
+		$saved = $this->save_row(
+			$wpdb->openbb_order_lines,
+			array(
+				'order_id'         => $this->order_id,
+				'product_id'       => $this->product_id,
+				'source'           => $this->source,
+				'product_name'     => $this->product_name,
+				'brand'            => $this->brand,
+				'unit_amount'      => $this->unit_amount,
+				'unit_type'        => $this->unit_type,
+				'base_per_unit'    => $this->base_per_unit,
+				'unit_price'       => $this->unit_price,
+				'container_charge' => $this->container_charge,
+				'own_container'    => (int) $this->own_container,
+				'qty_requested'    => $this->qty_requested,
+				'qty_prepared'     => $this->qty_prepared,
+				'qty_final'        => $this->qty_final,
+				'line_total'       => $this->line_total,
+				'created_at'       => $this->created_at,
+				'updated_at'       => $this->updated_at,
+			),
+			array(
+				'%d', '%d', '%s', '%s', '%s', '%f', '%s', '%f', '%d', '%d',
+				'%d', '%f', '%f', '%f', '%d', '%s', '%s',
+			)
+		);
+
+		if ( ! $saved || ! $order->save() || false === $wpdb->query( 'COMMIT' ) ) {
+			$wpdb->query( 'ROLLBACK' );
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Order lines can only be hard-deleted while their parent is a draft or cancelled.
+	 *
+	 * @return true|WP_Error
+	 */
+	public function delete() {
+		global $wpdb;
+
+		$order = OPENBB_Orders::get( $this->order_id );
+		if ( ! $this->id || ! $order ) {
+			return new WP_Error( 'openbb_order_line_not_found', __( 'This order line no longer exists.', 'open-bulk-buying' ) );
+		}
+		if ( ! in_array( $order->status, array( OPENBB_Order::STATUS_DRAFT, OPENBB_Order::STATUS_CANCELLED ), true ) ) {
+			return new WP_Error( 'openbb_order_line_not_deletable', __( 'Lines on submitted orders cannot be deleted.', 'open-bulk-buying' ) );
+		}
+
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			return new WP_Error( 'openbb_order_line_delete_failed', __( 'The order line could not be deleted.', 'open-bulk-buying' ) );
+		}
+		if ( 1 !== $wpdb->delete( $wpdb->openbb_order_lines, array( 'id' => $this->id ), array( '%d' ) )
+			|| ! $order->save()
+			|| false === $wpdb->query( 'COMMIT' ) ) {
+			$wpdb->query( 'ROLLBACK' );
+			return new WP_Error( 'openbb_order_line_delete_failed', __( 'The order line could not be deleted.', 'open-bulk-buying' ) );
+		}
+
+		return true;
+	}
+
 	public function get_unit_label(): string {
 		return openbb_format_unit( $this->unit_amount, $this->unit_type );
 	}
