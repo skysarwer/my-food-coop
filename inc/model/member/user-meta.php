@@ -1,7 +1,8 @@
 <?php
 /**
- * Member user meta registration. WordPress owns identity (email, names, password);
- * co-op fields live in prefixed user meta.
+ * Member fields. WordPress owns identity (email, names, password); co-op fields are
+ * per-site user meta, keyed with the site's table prefix like core's
+ * {prefix}capabilities, so a co-op role on one site of a network means nothing on another.
  *
  * @package Open_Bulk_Buying
  */
@@ -11,36 +12,102 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Field => sanitize callback. Stored under OPENBB_META_PREFIX . $field.
+ * Field => args. 'editable' fields may be changed by the member themselves or by
+ * openbb_edit_members; the rest only through the service layer (signup, rules
+ * acceptance, OPENBB_Access).
  */
 function openbb_member_meta_fields(): array {
 	return array(
-		'membership_status' => 'sanitize_key',
-		'joined_at'         => 'sanitize_text_field',
-		'phone'             => 'sanitize_text_field',
-		'language'          => 'sanitize_key',
-		'rules_version'     => 'absint',
-		'rules_accepted_at' => 'sanitize_text_field',
+		'coop_role'         => array(
+			'type'              => 'string',
+			'default'           => '',
+			'sanitize_callback' => array( 'OPENBB_Access', 'sanitize_role' ),
+			'editable'          => false,
+		),
+		'grants'            => array(
+			'type'              => 'array',
+			'default'           => array(),
+			'sanitize_callback' => array( 'OPENBB_Access', 'sanitize_grants' ),
+			'editable'          => false,
+		),
+		'joined_at'         => array(
+			'type'              => 'string',
+			'default'           => '',
+			'sanitize_callback' => 'sanitize_text_field',
+			'editable'          => false,
+		),
+		'phone'             => array(
+			'type'              => 'string',
+			'default'           => '',
+			'sanitize_callback' => 'sanitize_text_field',
+			'editable'          => true,
+		),
+		'language'          => array(
+			'type'              => 'string',
+			'default'           => '',
+			'sanitize_callback' => 'sanitize_key',
+			'editable'          => true,
+		),
+		'rules_version'     => array(
+			'type'              => 'integer',
+			'default'           => 0,
+			'sanitize_callback' => 'absint',
+			'editable'          => false,
+		),
+		'rules_accepted_at' => array(
+			'type'              => 'string',
+			'default'           => '',
+			'sanitize_callback' => 'sanitize_text_field',
+			'editable'          => false,
+		),
 	);
 }
 
+/**
+ * The user meta key for $field on the current site.
+ */
+function openbb_member_meta_key( string $field ): string {
+	global $wpdb;
+
+	return $wpdb->get_blog_prefix() . OPENBB_META_PREFIX . $field;
+}
+
+/**
+ * Reads the per-site key only. Unlike get_user_option(), never falls back to a
+ * network-wide key, which would leak a value from another site.
+ */
+function openbb_get_member_field( int $user_id, string $field ) {
+	return get_user_meta( $user_id, openbb_member_meta_key( $field ), true );
+}
+
+function openbb_update_member_field( int $user_id, string $field, $value ): bool {
+	$key = openbb_member_meta_key( $field );
+
+	return ( metadata_exists( 'user', $user_id, $key ) && get_user_meta( $user_id, $key, true ) === $value )
+		|| false !== update_user_meta( $user_id, $key, $value );
+}
+
 function openbb_register_member_meta(): void {
-	foreach ( openbb_member_meta_fields() as $field => $sanitize_callback ) {
+	foreach ( openbb_member_meta_fields() as $field => $args ) {
 		register_meta(
 			'user',
-			OPENBB_META_PREFIX . $field,
+			openbb_member_meta_key( $field ),
 			array(
-				'type'              => 'string',
+				'type'              => $args['type'],
 				'single'            => true,
-				'default'           => '',
+				'default'           => $args['default'],
 				'show_in_rest'      => false,
-				'sanitize_callback' => $sanitize_callback,
-				'auth_callback'     => 'openbb_can_edit_member_meta',
+				'sanitize_callback' => $args['sanitize_callback'],
+				'auth_callback'     => $args['editable'] ? 'openbb_can_edit_member_meta' : '__return_false',
 			)
 		);
 	}
 }
 
-function openbb_can_edit_member_meta( $allowed, $meta_key, $user_id ): bool {
-	return current_user_can( 'edit_user', $user_id );
+/**
+ * Restricts the core meta API (which already requires edit_user) to editable fields
+ * of members the user may edit. Co-op screens check openbb_edit_member themselves.
+ */
+function openbb_can_edit_member_meta( $allowed, $meta_key, $object_id, $user_id = 0 ): bool {
+	return user_can( (int) $user_id, 'openbb_edit_member', (int) $object_id );
 }

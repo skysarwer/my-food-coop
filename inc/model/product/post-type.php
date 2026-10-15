@@ -17,16 +17,19 @@ function openbb_register_product_post_type(): void {
 	register_post_type(
 		OPENBB_PRODUCT_POST_TYPE,
 		array(
-			'labels'       => array(
+			'labels'          => array(
 				'name'          => __( 'Products', 'open-bulk-buying' ),
 				'singular_name' => __( 'Product', 'open-bulk-buying' ),
 			),
-			'public'       => false,
-			'show_ui'      => false,
-			'show_in_rest' => false,
-			'rewrite'      => false,
-			'query_var'    => false,
-			'supports'     => array( 'title', 'thumbnail', 'custom-fields' ),
+			'public'          => false,
+			'show_ui'         => false,
+			'show_in_rest'    => false,
+			'rewrite'         => false,
+			'query_var'       => false,
+			'supports'        => array( 'title', 'thumbnail', 'custom-fields' ),
+			'capability_type' => array( 'openbb_product', 'openbb_products' ),
+			'map_meta_cap'    => true,
+			'capabilities'    => openbb_product_capabilities(),
 		)
 	);
 
@@ -44,6 +47,7 @@ function openbb_register_product_post_type(): void {
 			'show_in_rest' => false,
 			'rewrite'      => false,
 			'query_var'    => false,
+			'capabilities' => openbb_product_term_capabilities(),
 		)
 	);
 
@@ -61,6 +65,7 @@ function openbb_register_product_post_type(): void {
 			'show_in_rest'       => false,
 			'rewrite'            => false,
 			'query_var'          => false,
+			'capabilities'       => openbb_product_term_capabilities(),
 			'openbb_single_term' => true,
 		)
 	);
@@ -79,6 +84,36 @@ function openbb_register_product_post_type(): void {
 			)
 		);
 	}
+}
+
+/**
+ * Every primitive product capability resolves to openbb_manage_products, so WordPress
+ * roles get no access through post caps (e.g. an Editor's edit_others_posts).
+ */
+function openbb_product_capabilities(): array {
+	return array_fill_keys(
+		array(
+			'edit_posts',
+			'edit_others_posts',
+			'edit_private_posts',
+			'edit_published_posts',
+			'publish_posts',
+			'read_private_posts',
+			'delete_posts',
+			'delete_others_posts',
+			'delete_private_posts',
+			'delete_published_posts',
+			'create_posts',
+		),
+		'openbb_manage_products'
+	);
+}
+
+/**
+ * Category and supplier terms follow product access rather than manage_categories/edit_posts.
+ */
+function openbb_product_term_capabilities(): array {
+	return array_fill_keys( array( 'manage_terms', 'edit_terms', 'delete_terms', 'assign_terms' ), 'openbb_manage_products' );
 }
 
 /**
@@ -131,8 +166,8 @@ function openbb_product_meta_fields(): array {
 	);
 }
 
-function openbb_can_edit_product_meta( $allowed, $meta_key, $post_id ): bool {
-	return current_user_can( 'edit_post', $post_id );
+function openbb_can_edit_product_meta( $allowed, $meta_key, $post_id, $user_id = 0 ): bool {
+	return user_can( (int) $user_id, 'edit_post', (int) $post_id );
 }
 
 /**

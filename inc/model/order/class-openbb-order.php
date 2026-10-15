@@ -2,6 +2,7 @@
 /**
  * One member's order for one cycle. Amounts are integer minor units (e.g. cents).
  * language is the member's language when the order was submitted; line snapshots use it.
+ * member_note is written by and shown to the member; staff_note is internal.
  *
  * @package Open_Bulk_Buying
  */
@@ -38,7 +39,8 @@ class OPENBB_Order extends OPENBB_Entity {
 	public $aid_decided_by   = null;
 	public $aid_decided_at   = null;
 	public $total            = 0;
-	public $notes            = '';
+	public $member_note      = '';
+	public $staff_note       = '';
 	public $submitted_at     = null;
 	public $collected_at     = null;
 	public $created_at       = null;
@@ -59,7 +61,8 @@ class OPENBB_Order extends OPENBB_Entity {
 		$this->aid_approved     = (int) $this->aid_approved;
 		$this->aid_decided_by   = self::nullable_int( $this->aid_decided_by );
 		$this->total            = (int) $this->total;
-		$this->notes            = (string) $this->notes;
+		$this->member_note      = (string) $this->member_note;
+		$this->staff_note       = (string) $this->staff_note;
 	}
 
 	/**

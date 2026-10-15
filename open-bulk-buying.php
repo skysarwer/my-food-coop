@@ -45,14 +45,21 @@ require_once OPENBB_PLUGIN_DIR . 'inc/model/inventory/class-openbb-stock-move.ph
 require_once OPENBB_PLUGIN_DIR . 'inc/model/inventory/class-openbb-inventory.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/model/rules/class-openbb-rules-version.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/model/rules/class-openbb-rules.php';
+require_once OPENBB_PLUGIN_DIR . 'inc/access/class-openbb-access.php';
+require_once OPENBB_PLUGIN_DIR . 'inc/access/user-profile.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/class-openbb-installer.php';
 
 register_activation_hook( __FILE__, array( 'OPENBB_Installer', 'install' ) );
 add_action( 'plugins_loaded', array( 'OPENBB_Installer', 'maybe_upgrade' ) );
+add_filter( 'user_has_cap', array( 'OPENBB_Access', 'filter_user_has_cap' ), 10, 4 );
+add_filter( 'map_meta_cap', array( 'OPENBB_Access', 'filter_map_meta_cap' ), 10, 4 );
+add_action( 'edit_user_profile', 'openbb_render_user_access_fields' );
+add_action( 'user_profile_update_errors', 'openbb_save_user_access_fields', 100, 3 );
+add_filter( 'manage_users_columns', 'openbb_user_access_column' );
+add_filter( 'manage_users_custom_column', 'openbb_user_access_column_value', 10, 3 );
 add_action( 'init', 'openbb_register_product_post_type' );
 add_action( 'init', 'openbb_register_member_meta' );
 add_action( 'set_object_terms', 'openbb_enforce_single_term', 10, 4 );
 add_filter( 'add_post_metadata', 'openbb_guard_product_unit_meta', 10, 4 );
 add_filter( 'update_post_metadata', 'openbb_guard_product_unit_meta', 10, 4 );
 add_filter( 'delete_post_metadata', 'openbb_guard_product_unit_meta', 10, 4 );
-
