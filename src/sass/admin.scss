@@ -1,4 +1,3 @@
-
-.openbb-page__header.components-h-stack {
+.components-h-stack:is(.openbb-page__header, .openbb-panel__header) {
     width: unset;
 }
