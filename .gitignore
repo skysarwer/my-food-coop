@@ -1,3 +1,6 @@
 /ref/
 /vendor/
 /.phpunit.result.cache
+/node_modules/
+/build/
+*.zip

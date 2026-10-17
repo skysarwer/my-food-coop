@@ -3,7 +3,7 @@
  * Plugin Name: Open Bulk Buying
  * Description: Inventory management, order cycles and order forms for Food Coops
  * Version: 1.0
- * Requires at least: 6.5
+ * Requires at least: 6.6
  * Requires PHP: 7.4
  * Author: Evan Buckiewicz
  * Author URI: https://evan.works
@@ -30,6 +30,7 @@ foreach ( array( 'openbb_cycles', 'openbb_orders', 'openbb_order_lines', 'openbb
 }
 
 require_once OPENBB_PLUGIN_DIR . 'inc/i18n/localized-text.php';
+require_once OPENBB_PLUGIN_DIR . 'inc/i18n/currency.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/model/class-openbb-entity.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/model/member/user-meta.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/model/member/class-openbb-member.php';
@@ -43,6 +44,7 @@ require_once OPENBB_PLUGIN_DIR . 'inc/model/order/class-openbb-order-line.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/model/order/class-openbb-orders.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/model/inventory/class-openbb-stock-move.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/model/inventory/class-openbb-inventory.php';
+require_once OPENBB_PLUGIN_DIR . 'inc/model/order/class-openbb-order-editor.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/model/rules/class-openbb-rules-version.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/model/rules/class-openbb-rules.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/access/class-openbb-access.php';
@@ -50,18 +52,27 @@ require_once OPENBB_PLUGIN_DIR . 'inc/access/user-profile.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/class-openbb-installer.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/class-openbb-maintenance.php';
 require_once OPENBB_PLUGIN_DIR . 'inc/admin/class-openbb-settings.php';
+require_once OPENBB_PLUGIN_DIR . 'inc/admin/class-openbb-admin.php';
+require_once OPENBB_PLUGIN_DIR . 'inc/rest/class-openbb-rest-controller.php';
+require_once OPENBB_PLUGIN_DIR . 'inc/rest/class-openbb-rest-products.php';
+require_once OPENBB_PLUGIN_DIR . 'inc/rest/class-openbb-rest-cycles.php';
+require_once OPENBB_PLUGIN_DIR . 'inc/rest/class-openbb-rest-members.php';
+require_once OPENBB_PLUGIN_DIR . 'inc/rest/class-openbb-rest-orders.php';
 
 register_activation_hook( __FILE__, array( 'OPENBB_Installer', 'install' ) );
 add_action( 'plugins_loaded', array( 'OPENBB_Installer', 'maybe_upgrade' ) );
 add_filter( 'user_has_cap', array( 'OPENBB_Access', 'filter_user_has_cap' ), 10, 4 );
 add_filter( 'map_meta_cap', array( 'OPENBB_Access', 'filter_map_meta_cap' ), 10, 4 );
 add_action( 'edit_user_profile', 'openbb_render_user_access_fields' );
+add_action( 'show_user_profile', 'openbb_render_user_access_fields' );
 add_action( 'user_profile_update_errors', 'openbb_save_user_access_fields', 100, 3 );
 add_filter( 'manage_users_columns', 'openbb_user_access_column' );
 add_filter( 'manage_users_custom_column', 'openbb_user_access_column_value', 10, 3 );
 add_action( 'init', 'openbb_register_product_post_type' );
 add_action( 'init', 'openbb_register_member_meta' );
 OPENBB_Settings::register_hooks();
+OPENBB_Admin::register_hooks();
+OPENBB_REST_Controller::register_hooks();
 add_action( 'set_object_terms', 'openbb_enforce_single_term', 10, 4 );
 add_filter( 'add_post_metadata', 'openbb_guard_product_unit_meta', 10, 4 );
 add_filter( 'update_post_metadata', 'openbb_guard_product_unit_meta', 10, 4 );

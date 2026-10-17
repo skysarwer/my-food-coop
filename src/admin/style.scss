@@ -1,0 +1,315 @@
+@use "@wordpress/dataviews/build-style/style";
+
+$openbb-gray: #757575;
+$openbb-border: #e0e0e0;
+$openbb-danger: #cc1818;
+$openbb-success: #008a20;
+$openbb-sidebar-width: 420px;
+$openbb-wide-sidebar-width: 640px;
+
+#openbb-admin-root {
+	margin-top: 16px;
+}
+
+.openbb-page {
+	display: flex;
+	gap: 24px;
+	align-items: flex-start;
+
+	&__main {
+		flex: 1;
+		min-width: 0;
+		background: #fff;
+		border: 1px solid $openbb-border;
+		border-radius: 4px;
+	}
+
+	&__header {
+		padding: 16px 24px;
+		border-bottom: 1px solid $openbb-border;
+	}
+
+	&__title {
+		margin: 0;
+		font-size: 20px;
+		line-height: 1.4;
+	}
+
+	&__sidebar {
+		flex: 0 0 $openbb-sidebar-width;
+		max-width: $openbb-sidebar-width;
+		position: sticky;
+		top: 48px;
+		max-height: calc(100vh - 64px);
+		overflow-y: auto;
+		background: #fff;
+		border: 1px solid $openbb-border;
+		border-radius: 4px;
+	}
+
+	&.has-wide-sidebar &__sidebar {
+		flex-basis: $openbb-wide-sidebar-width;
+		max-width: $openbb-wide-sidebar-width;
+	}
+
+	@media (max-width: 1100px) {
+		&.has-sidebar {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		&__sidebar,
+		&.has-wide-sidebar &__sidebar {
+			position: static;
+			max-width: none;
+			max-height: none;
+			flex-basis: auto;
+		}
+	}
+}
+
+.openbb-panel {
+	&__header {
+		padding: 12px 16px;
+		border-bottom: 1px solid $openbb-border;
+	}
+
+	&__title {
+		margin: 0;
+		font-size: 15px;
+	}
+
+	&__body {
+		padding: 16px;
+	}
+
+	// Keep Save/Cancel in reach while the panel scrolls.
+	.openbb-form-actions {
+		position: sticky;
+		bottom: 0;
+		z-index: 1;
+		margin: 16px -16px -16px;
+		padding: 12px 16px;
+		background: #fff;
+		border-top: 1px solid $openbb-border;
+	}
+
+	// Date fields open their picker in a popover.
+	.dataforms-layouts-panel__field {
+		min-height: 40px;
+	}
+}
+
+.openbb-section-title {
+	margin: 16px 0 8px;
+	font-size: 13px;
+	text-transform: uppercase;
+	color: $openbb-gray;
+}
+
+.openbb-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 2px;
+	background: #f0f0f0;
+	color: #1e1e1e;
+	font-size: 12px;
+	line-height: 1.6;
+	white-space: nowrap;
+
+	&--success,
+	&--cycle-ordering,
+	&--order-submitted,
+	&--order-completed,
+	&--role-member {
+		background: #edfaef;
+		color: $openbb-success;
+	}
+
+	&--muted,
+	&--cycle-complete,
+	&--order-cancelled,
+	&--role-inactive {
+		color: $openbb-gray;
+	}
+
+	&--cycle-setup,
+	&--order-draft,
+	&--role-applicant {
+		background: #fcf9e8;
+		color: #8a6100;
+	}
+
+	&--cycle-processing,
+	&--cycle-distribution,
+	&--role-coordinator,
+	&--role-manager {
+		background: #f0f6fc;
+		color: #2271b1;
+	}
+}
+.openbb-product-image {
+	display: block;
+	width: 40px;
+	height: 40px;
+	object-fit: cover;
+	border-radius: 2px;
+
+	&--empty {
+		background: #f0f0f0;
+	}
+}
+
+.dataviews-view-grid .openbb-product-image {
+	width: 100%;
+	height: 100%;
+	border-radius: 0;
+}
+
+.openbb-stock--out,
+.openbb-qty--minus,
+.openbb-error-text {
+	color: $openbb-danger;
+}
+
+.openbb-stock--out {
+	font-weight: 600;
+}
+
+.openbb-muted {
+	color: $openbb-gray;
+}
+
+.openbb-pre {
+	white-space: pre-wrap;
+}
+
+.openbb-stock-summary {
+	margin-bottom: 16px;
+
+	&__cell {
+		flex: 1;
+		min-width: 0;
+	}
+
+	&__label {
+		font-size: 11px;
+		text-transform: uppercase;
+		color: $openbb-gray;
+	}
+
+	&__value {
+		font-size: 18px;
+		font-weight: 600;
+		margin: 4px 0;
+	}
+
+	&__unit {
+		font-size: 12px;
+		color: $openbb-gray;
+	}
+}
+
+.openbb-inventory .dataviews-wrapper,
+.openbb-compact-table .dataviews-wrapper {
+	.dataviews__view-actions {
+		padding-left: 0;
+		padding-right: 0;
+	}
+}
+
+.openbb-details {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: 6px 16px;
+	margin: 0 0 16px;
+
+	dt {
+		color: $openbb-gray;
+	}
+
+	dd {
+		margin: 0;
+	}
+
+	&--inline {
+		grid-template-columns: repeat(auto-fill, minmax(140px, max-content) minmax(120px, 1fr));
+	}
+}
+
+.openbb-lines {
+	margin: 8px 0 16px;
+
+	th,
+	td {
+		vertical-align: middle;
+	}
+
+	&__qty {
+		width: 140px;
+	}
+
+	&__total {
+		text-align: right !important;
+		white-space: nowrap;
+	}
+
+	tfoot td {
+		font-weight: 600;
+	}
+}
+
+.openbb-problems {
+	margin: 0 0 12px 18px;
+	list-style: disc;
+	color: $openbb-danger;
+}
+
+.openbb-form-modal .components-modal__content {
+	padding-bottom: 0;
+}
+
+.openbb-form-modal .openbb-form-actions {
+	position: sticky;
+	bottom: 0;
+	z-index: 1;
+	margin: 16px -32px 0;
+	padding: 16px 32px;
+	background: #fff;
+	border-top: 1px solid $openbb-border;
+}
+
+.openbb-order-editor__meta {
+	margin-bottom: 16px;
+}
+
+
+.openbb-loading {
+	display: flex;
+	justify-content: center;
+	padding: 32px;
+}
+
+.openbb-error {
+	margin: 16px 24px;
+}
+
+.openbb-admin__snackbars {
+	position: fixed;
+	bottom: 24px;
+	left: 184px;
+	z-index: 100001;
+
+	.folded & {
+		left: 60px;
+	}
+
+	@media (max-width: 960px) {
+		left: 60px;
+	}
+
+	@media (max-width: 782px) {
+		left: 16px;
+		right: 16px;
+	}
+}

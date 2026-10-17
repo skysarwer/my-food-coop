@@ -1,0 +1,31 @@
+{
+	"name": "open-bulk-buying",
+	"version": "1.0.0",
+	"description": "Inventory management, order cycles and order forms for Food Coops",
+	"author": "Evan Buckiewicz",
+	"license": "GPL-2.0-or-later",
+	"private": true,
+	"scripts": {
+		"build": "wp-scripts build && node scripts/clean-build-maps.js",
+		"start": "wp-scripts start",
+		"format": "wp-scripts format",
+		"lint:css": "wp-scripts lint-style",
+		"lint:js": "wp-scripts lint-js",
+		"packages-update": "wp-scripts packages-update",
+		"plugin-zip": "wp-scripts plugin-zip"
+	},
+	"files": [
+		"build",
+		"inc/**/*.php",
+		"open-bulk-buying.php",
+		"uninstall.php",
+		"readme.txt"
+	],
+	"devDependencies": {
+		"@wordpress/scripts": "^31.4.0"
+	},
+	"dependencies": {
+		"@wordpress/dataviews": "^20.0.0",
+		"@wordpress/icons": "^18.0.0"
+	}
+}
