@@ -14,20 +14,26 @@ class OPENBB_Settings {
 	const PAGE_SLUG = 'open-bulk-buying';
 
 	public static function register_hooks(): void {
-		add_action( 'admin_menu', array( __CLASS__, 'add_menu' ) );
+		// After OPENBB_Admin::add_menu(), so the Co-op parent menu exists.
+		add_action( 'admin_menu', array( __CLASS__, 'add_menu' ), 20 );
 		add_action( 'admin_post_openbb_save_test_mode', array( __CLASS__, 'save_test_mode' ) );
 		add_action( 'admin_post_openbb_populate_test_data', array( __CLASS__, 'populate_test_data' ) );
 		add_action( 'admin_post_openbb_delete_all_data', array( __CLASS__, 'delete_all_data' ) );
 	}
 
 	public static function add_menu(): void {
-		add_options_page(
+		add_submenu_page(
+			OPENBB_Admin::MENU_SLUG,
 			__( 'Open Bulk Buying Settings', 'open-bulk-buying' ),
-			__( 'Open Bulk Buying', 'open-bulk-buying' ),
+			__( 'Settings', 'open-bulk-buying' ),
 			'openbb_manage_settings',
 			self::PAGE_SLUG,
 			array( __CLASS__, 'render_page' )
 		);
+	}
+
+	public static function page_url( array $args = array() ): string {
+		return add_query_arg( array_merge( array( 'page' => self::PAGE_SLUG ), $args ), admin_url( 'admin.php' ) );
 	}
 
 	public static function render_page(): void {
@@ -156,14 +162,7 @@ class OPENBB_Settings {
 	}
 
 	private static function redirect( string $notice ): void {
-		$url = add_query_arg(
-			array(
-				'page'          => self::PAGE_SLUG,
-				'openbb_notice' => $notice,
-			),
-			admin_url( 'options-general.php' )
-		);
-		wp_safe_redirect( $url );
+		wp_safe_redirect( self::page_url( array( 'openbb_notice' => $notice ) ) );
 		exit;
 	}
 }
