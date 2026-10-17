@@ -1,0 +1,198 @@
+<?php
+/**
+ * Admin REST API: permissions, stock limits on orders and the inventory ledger.
+ *
+ * @package Open_Bulk_Buying
+ */
+
+class Test_OPENBB_REST_Admin extends OPENBB_TestCase {
+
+	/** @var int */
+	private $coordinator;
+
+	public function set_up(): void {
+		parent::set_up();
+		rest_get_server();
+		$this->coordinator = $this->make_user( 'coordinator', '' );
+		wp_set_current_user( $this->coordinator );
+	}
+
+	private function api( string $method, string $route, array $params = array() ): WP_REST_Response {
+		$request = new WP_REST_Request( $method, '/openbb/v1' . $route );
+		if ( 'GET' === $method ) {
+			$request->set_query_params( $params );
+		} else {
+			$request->set_body_params( $params );
+		}
+
+		return rest_do_request( $request );
+	}
+
+	private function make_stocked_product( float $quantity ): int {
+		$response = $this->api(
+			'POST',
+			'/products',
+			array(
+				'name'   => 'Oats',
+				'price'  => 250,
+				'active' => true,
+			)
+		);
+		$this->assertSame( 201, $response->get_status() );
+		$product_id = $response->get_data()['id'];
+
+		$move = $this->api(
+			'POST',
+			"/products/{$product_id}/moves",
+			array(
+				'quantity' => $quantity,
+				'unit'     => 'selling',
+				'reason'   => 'receipt',
+			)
+		);
+		$this->assertSame( 201, $move->get_status() );
+
+		return $product_id;
+	}
+
+	private function make_open_cycle(): int {
+		$cycle = new OPENBB_Cycle(
+			array(
+				'name'   => 'Open cycle',
+				'status' => OPENBB_Cycle::STATUS_ORDERING,
+			)
+		);
+		$this->assertTrue( $cycle->save() );
+
+		return $cycle->id;
+	}
+
+	private function new_order( int $cycle_id ): int {
+		$response = $this->api(
+			'POST',
+			'/orders',
+			array(
+				'cycle_id' => $cycle_id,
+				'user_id'  => $this->make_user( 'member' ),
+			)
+		);
+		$this->assertSame( 201, $response->get_status() );
+
+		return $response->get_data()['id'];
+	}
+
+	private function submit( int $order_id, int $product_id, float $qty ): WP_REST_Response {
+		return $this->api(
+			'PUT',
+			"/orders/{$order_id}",
+			array(
+				'status' => 'submitted',
+				'lines'  => array(
+					array(
+						'product_id' => $product_id,
+						'qty'        => $qty,
+					),
+				),
+			)
+		);
+	}
+
+	public function test_members_cannot_use_the_admin_api(): void {
+		wp_set_current_user( $this->make_user( 'member' ) );
+
+		foreach ( array( '/products', '/cycles', '/orders', '/members' ) as $route ) {
+			$this->assertSame( 403, $this->api( 'GET', $route )->get_status(), $route );
+		}
+	}
+
+	public function test_orders_are_limited_to_available_stock(): void {
+		$product_id = $this->make_stocked_product( 5 );
+		$cycle_id   = $this->make_open_cycle();
+
+		$first = $this->new_order( $cycle_id );
+		$this->assertSame( 200, $this->submit( $first, $product_id, 3 )->get_status() );
+
+		// Only 2 are left once the first order reserves 3.
+		$second   = $this->new_order( $cycle_id );
+		$response = $this->submit( $second, $product_id, 3 );
+		$this->assertSame( 409, $response->get_status() );
+		$this->assertSame( 'openbb_insufficient_stock', $response->as_error()->get_error_code() );
+		$this->assertEquals( 2, $response->as_error()->get_error_data()['max_qty'] );
+		$this->assertSame( 200, $this->submit( $second, $product_id, 2 )->get_status() );
+
+		// The first order may still hold its own reservation, but no more.
+		$products = $this->api( 'GET', '/order-products', array( 'order_id' => $first ) )->get_data();
+		$this->assertEquals( 3, wp_list_pluck( $products, 'max_qty', 'id' )[ $product_id ] );
+	}
+
+	public function test_duplicate_orders_point_to_the_existing_order(): void {
+		$cycle_id = $this->make_open_cycle();
+		$member   = $this->make_user( 'member' );
+		$args     = array(
+			'cycle_id' => $cycle_id,
+			'user_id'  => $member,
+		);
+
+		$first    = $this->api( 'POST', '/orders', $args );
+		$response = $this->api( 'POST', '/orders', $args );
+
+		$this->assertSame( 409, $response->get_status() );
+		$this->assertSame( $first->get_data()['id'], $response->as_error()->get_error_data()['order_id'] );
+	}
+
+	public function test_submitted_changes_need_a_reason(): void {
+		$product_id = $this->make_stocked_product( 5 );
+		$order_id   = $this->new_order( $this->make_open_cycle() );
+		$this->submit( $order_id, $product_id, 1 );
+
+		$response = $this->api( 'PUT', "/orders/{$order_id}", array( 'status' => 'cancelled' ) );
+		$this->assertSame( 'openbb_reason_required', $response->as_error()->get_error_code() );
+
+		$response = $this->api(
+			'PUT',
+			"/orders/{$order_id}",
+			array(
+				'status' => 'cancelled',
+				'reason' => 'Member asked to cancel.',
+			)
+		);
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertStringContainsString( 'Member asked to cancel.', $response->get_data()['staff_note'] );
+	}
+
+	public function test_stock_cannot_go_negative(): void {
+		$product_id = $this->make_stocked_product( 2 );
+
+		$response = $this->api(
+			'POST',
+			"/products/{$product_id}/moves",
+			array(
+				'quantity' => -3,
+				'unit'     => 'selling',
+				'reason'   => 'spoilage',
+			)
+		);
+
+		$this->assertSame( 409, $response->get_status() );
+		$this->assertEquals( 2, OPENBB_Inventory::get_on_hand( $product_id ) );
+	}
+
+	public function test_distribution_can_be_recorded_by_hand_and_only_removes_stock(): void {
+		$product_id = $this->make_stocked_product( 5 );
+		$move       = function ( float $quantity ) use ( $product_id ) {
+			return $this->api(
+				'POST',
+				"/products/{$product_id}/moves",
+				array(
+					'quantity' => $quantity,
+					'unit'     => 'selling',
+					'reason'   => 'distribution',
+				)
+			);
+		};
+
+		$this->assertSame( 400, $move( 2 )->get_status() );
+		$this->assertSame( 201, $move( -2 )->get_status() );
+		$this->assertEquals( 3, OPENBB_Inventory::get_on_hand( $product_id ) );
+	}
+}

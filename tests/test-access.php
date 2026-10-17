@@ -307,13 +307,23 @@ class Test_OPENBB_Access extends OPENBB_TestCase {
 		$this->assertSame( array( $user_id, array( 'aid_reviewer' ), array(), $manager ), $grant_action->get_args()[0] );
 	}
 
-	public function test_nobody_changes_their_own_access(): void {
-		$admin = $this->make_user( 'member', 'administrator' );
+	public function test_staff_cannot_change_their_own_access(): void {
+		$manager = $this->make_user( 'manager' );
+		wp_set_current_user( $manager );
+
+		$this->assertFalse( current_user_can( 'openbb_set_coop_role', $manager, 'member' ) );
+		$this->assertFalse( current_user_can( 'openbb_set_grants', $manager ) );
+		$this->assertWPError( OPENBB_Access::set_coop_role( $manager, 'inactive' ) );
+	}
+
+	public function test_administrators_can_set_their_own_access(): void {
+		$admin = $this->make_user( '', 'administrator' );
 		wp_set_current_user( $admin );
 
-		$this->assertFalse( current_user_can( 'openbb_set_coop_role', $admin, 'manager' ) );
-		$this->assertFalse( current_user_can( 'openbb_set_grants', $admin ) );
-		$this->assertWPError( OPENBB_Access::set_coop_role( $admin, 'inactive' ) );
+		$this->assertTrue( current_user_can( 'openbb_set_coop_role', $admin, 'manager' ) );
+		$this->assertTrue( current_user_can( 'openbb_set_grants', $admin ) );
+		$this->assertTrue( OPENBB_Access::set_coop_role( $admin, 'member' ) );
+		$this->assertSame( 'member', OPENBB_Access::get_coop_role( $admin ) );
 	}
 
 	public function test_only_access_managers_set_grants(): void {
