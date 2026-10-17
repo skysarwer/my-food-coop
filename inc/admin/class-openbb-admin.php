@@ -1,7 +1,8 @@
 <?php
 /**
- * Co-op admin screens: a "Co-op" menu whose pages mount the React admin app
- * (src/admin, built to build/admin) and the block editor stylesheet.
+ * Co-op admin screens: a "Co-op" menu whose pages all mount the React admin app
+ * (src/admin, built to build/admin), plus the block editor stylesheet. The app's
+ * router switches between screens client-side; each page still loads on its own.
  *
  * Every screen talks to the openbb/v1 REST API, which enforces permissions; the
  * menu capabilities here only decide what is shown.
@@ -17,12 +18,17 @@ class OPENBB_Admin {
 
 	const MENU_SLUG = 'openbb';
 
-	/** Screen => [ page slug, capability ]. */
+	/**
+	 * Screen => [ page slug, capability ], in menu order. Every page mounts the same
+	 * app, whose router switches between them without reloading.
+	 */
 	const SCREENS = array(
+		'overview' => array( self::MENU_SLUG, 'openbb_access_admin' ),
 		'products' => array( 'openbb-products', 'openbb_manage_products' ),
 		'cycles'   => array( 'openbb-cycles', 'openbb_manage_cycles' ),
 		'orders'   => array( 'openbb-orders', 'openbb_view_orders' ),
 		'members'  => array( 'openbb-members', 'openbb_view_members' ),
+		'settings' => array( 'open-bulk-buying', 'openbb_manage_settings' ),
 	);
 
 	/** @var array<string, string> Hook suffix => screen. */
@@ -35,103 +41,76 @@ class OPENBB_Admin {
 	}
 
 	public static function add_menu(): void {
-		add_menu_page(
+		$hook = add_menu_page(
 			__( 'Co-op', 'open-bulk-buying' ),
 			__( 'Co-op', 'open-bulk-buying' ),
 			'openbb_access_admin',
 			self::MENU_SLUG,
-			array( __CLASS__, 'render_dashboard' ),
+			self::render_callback( 'overview' ),
 			'dashicons-carrot',
 			26
 		);
-		add_submenu_page(
-			self::MENU_SLUG,
-			__( 'Co-op overview', 'open-bulk-buying' ),
-			__( 'Overview', 'open-bulk-buying' ),
-			'openbb_access_admin',
-			self::MENU_SLUG,
-			array( __CLASS__, 'render_dashboard' )
-		);
+		if ( $hook ) {
+			self::$hooks[ $hook ] = 'overview';
+		}
 
 		foreach ( self::screen_titles() as $screen => $title ) {
 			list( $slug, $cap ) = self::SCREENS[ $screen ];
 
-			$hook = add_submenu_page(
-				self::MENU_SLUG,
-				$title,
-				$title,
-				$cap,
-				$slug,
-				static function () use ( $screen, $cap ): void {
-					self::render_screen( $screen, $cap );
-				}
-			);
+			$hook = add_submenu_page( self::MENU_SLUG, $title, $title, $cap, $slug, self::render_callback( $screen ) );
 			if ( $hook ) {
 				self::$hooks[ $hook ] = $screen;
 			}
 		}
 	}
 
+	public static function screen_url( string $screen, array $args = array() ): string {
+		return add_query_arg( array_merge( array( 'page' => self::SCREENS[ $screen ][0] ), $args ), admin_url( 'admin.php' ) );
+	}
+
 	private static function screen_titles(): array {
 		return array(
+			'overview' => __( 'Overview', 'open-bulk-buying' ),
 			'products' => __( 'Products', 'open-bulk-buying' ),
 			'cycles'   => __( 'Cycles', 'open-bulk-buying' ),
 			'orders'   => __( 'Orders', 'open-bulk-buying' ),
 			'members'  => __( 'Members', 'open-bulk-buying' ),
+			'settings' => __( 'Settings', 'open-bulk-buying' ),
 		);
 	}
 
-	public static function render_dashboard(): void {
-		if ( ! current_user_can( 'openbb_access_admin' ) ) {
-			wp_die( esc_html__( 'You are not allowed to access the co-op admin.', 'open-bulk-buying' ) );
+	private static function render_callback( string $screen ): Closure {
+		// The Overview submenu shares the top-level hook; the same closure keeps add_action from rendering twice.
+		static $callbacks = array();
+		if ( ! isset( $callbacks[ $screen ] ) ) {
+			$callbacks[ $screen ] = static function () use ( $screen ): void {
+				self::render_screen( $screen );
+			};
 		}
 
-		$links = array();
-		foreach ( self::screen_titles() as $screen => $title ) {
-			list( $slug, $cap ) = self::SCREENS[ $screen ];
-			if ( current_user_can( $cap ) ) {
-				$links[ $title ] = admin_url( 'admin.php?page=' . $slug );
-			}
-		}
-		if ( current_user_can( 'openbb_manage_settings' ) ) {
-			$links[ __( 'Settings', 'open-bulk-buying' ) ] = OPENBB_Settings::page_url();
-		}
-		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'Co-op', 'open-bulk-buying' ); ?></h1>
-			<?php if ( $links ) : ?>
-				<ul class="ul-disc">
-					<?php foreach ( $links as $title => $url ) : ?>
-						<li><a href="<?php echo esc_url( $url ); ?>"><?php echo esc_html( $title ); ?></a></li>
-					<?php endforeach; ?>
-				</ul>
-			<?php else : ?>
-				<p><?php esc_html_e( 'There is nothing here for you to manage yet.', 'open-bulk-buying' ); ?></p>
-			<?php endif; ?>
-		</div>
-		<?php
+		return $callbacks[ $screen ];
 	}
 
-	private static function render_screen( string $screen, string $cap ): void {
-		if ( ! current_user_can( $cap ) ) {
+	private static function render_screen( string $screen ): void {
+		if ( ! current_user_can( self::SCREENS[ $screen ][1] ) ) {
 			wp_die( esc_html__( 'You are not allowed to access this page.', 'open-bulk-buying' ) );
 		}
 		?>
 		<div class="wrap openbb-admin">
-			<h1 class="screen-reader-text"><?php echo esc_html( self::screen_titles()[ $screen ] ); ?></h1>
 			<div id="openbb-admin-root" data-screen="<?php echo esc_attr( $screen ); ?>">
+				<h1><?php echo esc_html( self::screen_titles()[ $screen ] ); ?></h1>
 				<?php if ( ! file_exists( OPENBB_PLUGIN_DIR . 'build/admin/index.asset.php' ) ) : ?>
 					<div class="notice notice-error inline">
 						<p><?php esc_html_e( 'The admin scripts have not been built. Run "npm install" and "npm run build" in the plugin folder.', 'open-bulk-buying' ); ?></p>
 					</div>
 				<?php else : ?>
-					<p><?php esc_html_e( 'Loading…', 'open-bulk-buying' ); ?></p>
+					<p class="hide-if-js"><?php esc_html_e( 'This screen requires JavaScript.', 'open-bulk-buying' ); ?></p>
+					<p class="hide-if-no-js"><?php esc_html_e( 'Loading…', 'open-bulk-buying' ); ?></p>
 				<?php endif; ?>
 			</div>
 		</div>
 		<?php
 	}
-
 	public static function enqueue( string $hook_suffix ): void {
 		if ( ! isset( self::$hooks[ $hook_suffix ] ) ) {
 			return;
@@ -144,7 +123,8 @@ class OPENBB_Admin {
 		$asset  = require $asset_file;
 		$screen = self::$hooks[ $hook_suffix ];
 
-		if ( 'products' === $screen ) {
+		// Any screen can switch to Products without a reload, so load media up front.
+		if ( current_user_can( 'openbb_manage_products' ) && current_user_can( 'upload_files' ) ) {
 			wp_enqueue_media();
 		}
 
@@ -178,15 +158,27 @@ class OPENBB_Admin {
 				'openbb_edit_members',
 				'openbb_view_aid',
 				'openbb_manage_access',
+				'openbb_manage_settings',
+				'manage_options',
 				'upload_files',
 			) as $cap
 		) {
 			$caps[ $cap ] = current_user_can( $cap );
 		}
 
-		$urls = array();
-		foreach ( self::SCREENS as $name => $screen_info ) {
-			$urls[ $name ] = admin_url( 'admin.php?page=' . $screen_info[0] );
+		$urls    = array();
+		$screens = array();
+		foreach ( self::screen_titles() as $name => $title ) {
+			list( $slug, $cap ) = self::SCREENS[ $name ];
+			$urls[ $name ]      = self::screen_url( $name );
+			if ( current_user_can( $cap ) ) {
+				$screens[] = array(
+					'name'  => $name,
+					'slug'  => $slug,
+					'title' => $title,
+					'url'   => $urls[ $name ],
+				);
+			}
 		}
 
 		$languages = array();
@@ -210,6 +202,7 @@ class OPENBB_Admin {
 			'manualStockReasons'   => OPENBB_Stock_Move::MANUAL_REASONS,
 			'caps'                 => $caps,
 			'urls'                 => $urls,
+			'screens'              => $screens,
 		);
 	}
 
