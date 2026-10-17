@@ -119,4 +119,25 @@ class OPENBB_Product extends OPENBB_Entity {
 	public function is_active(): bool {
 		return $this->active;
 	}
+
+	/**
+	 * Permanently deletes a product that was never ordered or stocked. Products with
+	 * order lines or ledger moves are history and can only be deactivated.
+	 *
+	 * @return true|WP_Error
+	 */
+	public function delete() {
+		global $wpdb;
+
+		$in_orders = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->openbb_order_lines} WHERE product_id = %d", $this->id ) );
+		if ( $in_orders > 0 || OPENBB_Inventory::count_moves( $this->id ) > 0 ) {
+			return new WP_Error( 'openbb_product_has_history', __( 'This product has orders or stock history. Deactivate it instead of deleting it.', 'open-bulk-buying' ), array( 'status' => 409 ) );
+		}
+
+		if ( ! wp_delete_post( $this->id, true ) ) {
+			return new WP_Error( 'openbb_product_delete_failed', __( 'The product could not be deleted.', 'open-bulk-buying' ), array( 'status' => 500 ) );
+		}
+
+		return true;
+	}
 }

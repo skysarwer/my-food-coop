@@ -43,6 +43,38 @@ class OPENBB_Cycles {
 	}
 
 	/**
+	 * Validates and saves a cycle, then announces a status change.
+	 *
+	 * Use this for staff edits; OPENBB_Cycle::save() is the unchecked primitive.
+	 *
+	 * @param string $old_status Status before the edit; '' for a new cycle.
+	 * @return true|WP_Error
+	 */
+	public static function store( OPENBB_Cycle $cycle, string $old_status, int $actor_id ) {
+		$valid = $cycle->validate();
+		if ( is_wp_error( $valid ) ) {
+			return $valid;
+		}
+
+		if ( ! $cycle->save() ) {
+			return new WP_Error( 'openbb_cycle_save_failed', __( 'The cycle could not be saved.', 'open-bulk-buying' ), array( 'status' => 500 ) );
+		}
+
+		if ( $old_status !== $cycle->status ) {
+			/**
+			 * Fires after a cycle is created or its status changes.
+			 *
+			 * @param OPENBB_Cycle $cycle      The saved cycle.
+			 * @param string       $old_status Previous status; '' for a new cycle.
+			 * @param int          $actor_id   User who made the change.
+			 */
+			do_action( 'openbb_cycle_status_changed', $cycle, $old_status, $actor_id );
+		}
+
+		return true;
+	}
+
+	/**
 	 * Cycles whose submitted orders currently reserve stock.
 	 *
 	 * @return OPENBB_Cycle[]

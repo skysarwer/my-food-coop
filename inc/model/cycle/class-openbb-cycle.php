@@ -92,6 +92,61 @@ class OPENBB_Cycle extends OPENBB_Entity {
 	}
 
 	/**
+	 * Checks the cycle's own rules before saving: a name, dates in order, an
+	 * ordering window before leaving setup, and no overlap with another upcoming
+	 * or open ordering window (members order from one cycle at a time).
+	 *
+	 * @return true|WP_Error
+	 */
+	public function validate() {
+		global $wpdb;
+
+		if ( '' === trim( $this->name ) ) {
+			return self::invalid( __( 'Enter a cycle name.', 'open-bulk-buying' ) );
+		}
+		$statuses = array( self::STATUS_SETUP, self::STATUS_ORDERING, self::STATUS_PROCESSING, self::STATUS_DISTRIBUTION, self::STATUS_COMPLETE );
+		if ( ! in_array( $this->status, $statuses, true ) ) {
+			return self::invalid( __( 'Choose a valid cycle status.', 'open-bulk-buying' ) );
+		}
+		if ( $this->opens_at && $this->closes_at && strtotime( $this->closes_at ) <= strtotime( $this->opens_at ) ) {
+			return self::invalid( __( 'Ordering must close after it opens.', 'open-bulk-buying' ) );
+		}
+		if ( $this->pickup_opens_at && $this->pickup_closes_at && strtotime( $this->pickup_closes_at ) <= strtotime( $this->pickup_opens_at ) ) {
+			return self::invalid( __( 'Pickup must end after it starts.', 'open-bulk-buying' ) );
+		}
+		if ( self::STATUS_SETUP !== $this->status && ( ! $this->opens_at || ! $this->closes_at ) ) {
+			return self::invalid( __( 'Set when ordering opens and closes before opening the cycle.', 'open-bulk-buying' ) );
+		}
+
+		if ( $this->opens_at && $this->closes_at && in_array( $this->status, array( self::STATUS_SETUP, self::STATUS_ORDERING ), true ) ) {
+			$overlap = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT name FROM {$wpdb->openbb_cycles}
+					WHERE id != %d AND status IN (%s, %s)
+						AND opens_at IS NOT NULL AND closes_at IS NOT NULL
+						AND opens_at < %s AND closes_at > %s
+					LIMIT 1",
+					(int) $this->id,
+					self::STATUS_SETUP,
+					self::STATUS_ORDERING,
+					$this->closes_at,
+					$this->opens_at
+				)
+			);
+			if ( null !== $overlap ) {
+				return new WP_Error(
+					'openbb_cycle_overlap',
+					/* translators: %s: name of the other cycle. */
+					sprintf( __( 'This ordering window overlaps with "%s".', 'open-bulk-buying' ), $overlap ),
+					array( 'status' => 409 )
+				);
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Translated status labels in lifecycle order. Only call from UI code.
 	 */
 	public static function status_labels(): array {
@@ -124,5 +179,9 @@ class OPENBB_Cycle extends OPENBB_Entity {
 
 	public function get_pickup_instructions( ?string $language = null ): string {
 		return openbb_localized( $this->pickup_instructions, $language );
+	}
+
+	private static function invalid( string $message ): WP_Error {
+		return new WP_Error( 'openbb_invalid_cycle', $message, array( 'status' => 400 ) );
 	}
 }
