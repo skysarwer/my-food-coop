@@ -2,7 +2,7 @@
 /**
  * Interim co-op role and grant fields on the core Edit User screen, until the
  * Co-op → Access screen exists. Only Administrators reach other users' profiles
- * (that needs edit_users), and nobody can change their own co-op access.
+ * (that needs edit_users). Only Administrators can change their own co-op access.
  *
  * @package Open_Bulk_Buying
  */
@@ -12,7 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Hooked to 'edit_user_profile', which only runs when editing someone else.
+ * Hooked to 'edit_user_profile' and 'show_user_profile'; the capability check
+ * hides the fields on your own profile unless you are an Administrator.
  */
 function openbb_render_user_access_fields( WP_User $user ): void {
 	if ( ! current_user_can( 'openbb_set_grants', $user->ID ) ) {

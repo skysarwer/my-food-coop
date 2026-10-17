@@ -401,7 +401,8 @@ class OPENBB_Access {
 
 			case 'openbb_set_coop_role':
 			case 'openbb_set_grants':
-				if ( $is_self || self::is_protected_from( $target_id, $user_id ) ) {
+				// Administrators may set their own co-op access: their admin powers don't come from it.
+				if ( ( $is_self && ! user_can( $user_id, 'manage_options' ) ) || self::is_protected_from( $target_id, $user_id ) ) {
 					return array( 'do_not_allow' );
 				}
 				if ( 'openbb_set_grants' === $cap ) {
