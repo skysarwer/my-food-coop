@@ -7,23 +7,23 @@ import {
 } from '@wordpress/components';
 import { useCallback, useEffect, useMemo, useState } from '@wordpress/element';
 import { __, sprintf } from '@wordpress/i18n';
-import { dateI18n, getSettings } from '@wordpress/date';
 import { pencil, plus, seen } from '@wordpress/icons';
 import { DataViews } from '@wordpress/dataviews/wp';
 
-import { EditForm, ErrorNotice, Page, SidePanel } from '../../components';
+import { ErrorNotice, Page, SidePanel, usePanelStack } from '../../components';
 import {
 	discardUnsavedChanges,
 	useDebouncedValue,
 	useDiscardGuard,
 	useList,
 	useNotify,
-	useRecord,
 	useUnsavedChanges,
 } from '../../hooks';
 import { request } from '../../utils/api';
-import { can, config, languageLabel, queryArg, toElements } from '../../utils/config';
-import { formatMoney } from '../../utils/format';
+import { can, config, queryArg, toElements } from '../../utils/config';
+import relatedPanels from '../related-panels';
+import { memberFields } from './fields';
+import MemberPanel from './panel';
 
 const LIST_MAPPING = {
 	orderby: { display_name: 'name', email: 'email', joined_at: 'registered' },
@@ -43,302 +43,6 @@ const DEFAULT_VIEW = {
 	fields: [ 'coop_role', 'phone', 'orders_count', 'last_order_at', 'rules_accepted' ],
 	filters: [],
 };
-
-const formatDate = ( value ) =>
-	value ? dateI18n( getSettings().formats.date, value ) : '—';
-
-const languageElements = config.languages.map( ( lang ) => ( {
-	value: lang,
-	label: languageLabel( lang ),
-} ) );
-
-const memberFields = [
-	{
-		id: 'display_name',
-		label: __( 'Name', 'open-bulk-buying' ),
-		type: 'text',
-		enableHiding: false,
-		filterBy: false,
-	},
-	{
-		id: 'email',
-		label: __( 'Email', 'open-bulk-buying' ),
-		type: 'email',
-		filterBy: false,
-	},
-	{
-		id: 'first_name',
-		label: __( 'First name', 'open-bulk-buying' ),
-		type: 'text',
-		enableSorting: false,
-		filterBy: false,
-	},
-	{
-		id: 'last_name',
-		label: __( 'Last name', 'open-bulk-buying' ),
-		type: 'text',
-		enableSorting: false,
-		filterBy: false,
-	},
-	{
-		id: 'phone',
-		label: __( 'Phone', 'open-bulk-buying' ),
-		type: 'telephone',
-		enableSorting: false,
-		filterBy: false,
-	},
-	{
-		id: 'language',
-		label: __( 'Language', 'open-bulk-buying' ),
-		type: 'text',
-		...( languageElements.length
-			? {
-					Edit: 'select',
-					elements: [
-						{ value: '', label: __( 'Site default', 'open-bulk-buying' ) },
-						...languageElements,
-					],
-			  }
-			: {} ),
-		render: ( { item } ) => ( item.language ? languageLabel( item.language ) : '' ),
-		enableSorting: false,
-		filterBy: false,
-	},
-	{
-		id: 'coop_role',
-		label: __( 'Role', 'open-bulk-buying' ),
-		type: 'text',
-		Edit: 'select',
-		elements: toElements( config.coopRoles ),
-		render: ( { item } ) => (
-			<>
-				<span className={ `openbb-badge openbb-badge--role-${ item.coop_role }` }>
-					{ item.coop_role_label }
-				</span>
-				{ item.grant_labels?.length > 0 && (
-					<span className="openbb-muted"> + { item.grant_labels.join( ', ' ) }</span>
-				) }
-			</>
-		),
-		filterBy: { operators: [ 'isAny' ], isPrimary: true },
-		enableSorting: false,
-	},
-	{
-		id: 'orders_count',
-		label: __( 'Orders', 'open-bulk-buying' ),
-		type: 'integer',
-		readOnly: true,
-		enableSorting: false,
-		filterBy: false,
-	},
-	{
-		id: 'last_order_at',
-		label: __( 'Last order', 'open-bulk-buying' ),
-		type: 'datetime',
-		readOnly: true,
-		render: ( { item } ) => formatDate( item.last_order_at ),
-		enableSorting: false,
-		filterBy: false,
-	},
-	{
-		id: 'joined_at',
-		label: __( 'Joined', 'open-bulk-buying' ),
-		type: 'datetime',
-		readOnly: true,
-		render: ( { item } ) => formatDate( item.joined_at ),
-		filterBy: false,
-	},
-	{
-		id: 'rules_accepted',
-		label: __( 'Rules', 'open-bulk-buying' ),
-		type: 'boolean',
-		readOnly: true,
-		render: ( { item } ) =>
-			item.rules_accepted
-				? __( 'Accepted', 'open-bulk-buying' )
-				: __( 'Not accepted', 'open-bulk-buying' ),
-		enableSorting: false,
-		filterBy: false,
-	},
-];
-
-const memberForm = {
-	layout: { type: 'regular', labelPosition: 'top' },
-	fields: [
-		{
-			id: 'names',
-			label: __( 'Name', 'open-bulk-buying' ),
-			layout: { type: 'row' },
-			children: [ 'first_name', 'last_name' ],
-		},
-		'phone',
-		'language',
-		'coop_role',
-	],
-};
-
-function MemberDetailsForm( { member, onSaved, onCancel } ) {
-	// Only offer roles this user may assign to this member.
-	const fields = useMemo(
-		() =>
-			memberFields.map( ( field ) =>
-				field.id === 'coop_role'
-					? {
-							...field,
-							elements: field.elements.filter( ( el ) =>
-								member.assignable_roles.includes( el.value )
-							),
-					  }
-					: field
-			),
-		[ member ]
-	);
-
-	return (
-		<EditForm
-			fields={ fields }
-			form={ memberForm }
-			initial={ member }
-			requireChanges
-			onCancel={ onCancel }
-			onSubmit={ async ( data, edits ) => {
-				const keys = [ 'first_name', 'last_name', 'phone', 'language', 'coop_role' ];
-				const payload = Object.fromEntries(
-					keys.filter( ( key ) => key in edits ).map( ( key ) => [ key, data[ key ] ?? '' ] )
-				);
-				onSaved(
-					await request( `/members/${ member.id }`, { method: 'PUT', data: payload } )
-				);
-			} }
-		>
-			<MemberFacts member={ member } />
-		</EditForm>
-	);
-}
-
-function MemberFacts( { member } ) {
-	return (
-		<dl className="openbb-details">
-			<dt>{ __( 'Email', 'open-bulk-buying' ) }</dt>
-			<dd>
-				<a href={ `mailto:${ member.email }` }>{ member.email }</a>
-			</dd>
-			<dt>{ __( 'Joined', 'open-bulk-buying' ) }</dt>
-			<dd>{ formatDate( member.joined_at ) }</dd>
-			<dt>{ __( 'Rules', 'open-bulk-buying' ) }</dt>
-			<dd>
-				{ member.rules_accepted
-					? __( 'Accepted', 'open-bulk-buying' )
-					: __( 'Not accepted', 'open-bulk-buying' ) }
-			</dd>
-			{ member.grant_labels?.length > 0 && (
-				<>
-					<dt>{ __( 'Grants', 'open-bulk-buying' ) }</dt>
-					<dd>{ member.grant_labels.join( ', ' ) }</dd>
-				</>
-			) }
-			{ member.profile_url && (
-				<>
-					<dt>{ __( 'Profile', 'open-bulk-buying' ) }</dt>
-					<dd>
-						<a href={ member.profile_url }>
-							{ __( 'Edit WordPress profile', 'open-bulk-buying' ) }
-						</a>
-					</dd>
-				</>
-			) }
-		</dl>
-	);
-}
-
-function MemberReadOnly( { member } ) {
-	return (
-		<>
-			<MemberFacts member={ member } />
-			<dl className="openbb-details">
-				<dt>{ __( 'Phone', 'open-bulk-buying' ) }</dt>
-				<dd>{ member.phone || '—' }</dd>
-				<dt>{ __( 'Role', 'open-bulk-buying' ) }</dt>
-				<dd>{ member.coop_role_label }</dd>
-			</dl>
-		</>
-	);
-}
-
-function MemberOrders( { orders } ) {
-	if ( ! orders.length ) {
-		return <p>{ __( 'No orders yet.', 'open-bulk-buying' ) }</p>;
-	}
-	return (
-		<table className="widefat striped openbb-compact-table">
-			<thead>
-				<tr>
-					<th>{ __( 'Order', 'open-bulk-buying' ) }</th>
-					<th>{ __( 'Cycle', 'open-bulk-buying' ) }</th>
-					<th>{ __( 'Status', 'open-bulk-buying' ) }</th>
-					<th>{ __( 'Total', 'open-bulk-buying' ) }</th>
-				</tr>
-			</thead>
-			<tbody>
-				{ orders.map( ( order ) => (
-					<tr key={ order.id }>
-						<td>
-							<a href={ `${ config.urls.orders }&order=${ order.id }` }>
-								#{ order.id }
-							</a>
-						</td>
-						<td>{ order.cycle_name }</td>
-						<td>{ order.status_label }</td>
-						<td>{ formatMoney( order.total ) }</td>
-					</tr>
-				) ) }
-			</tbody>
-		</table>
-	);
-}
-
-function MemberPanel( { memberId, onClose, onSaved } ) {
-	const { record: member, setRecord, error, isLoading } = useRecord(
-		`/members/${ memberId }`
-	);
-
-	const tabs = [
-		{ name: 'details', title: __( 'Details', 'open-bulk-buying' ) },
-		...( can( 'openbb_view_orders' )
-			? [ { name: 'orders', title: __( 'Orders', 'open-bulk-buying' ) } ]
-			: [] ),
-	];
-
-	return (
-		<SidePanel
-			title={ member?.display_name || __( 'Member', 'open-bulk-buying' ) }
-			onClose={ onClose }
-			error={ error }
-			isLoading={ isLoading }
-			tabs={ tabs }
-		>
-			{ ( tab ) => {
-				if ( tab.name === 'orders' ) {
-					return <MemberOrders orders={ member.orders || [] } />;
-				}
-				if ( ! can( 'openbb_edit_members' ) || ! member.can_edit ) {
-					return <MemberReadOnly member={ member } />;
-				}
-				return (
-					<MemberDetailsForm
-						member={ member }
-						onCancel={ onClose }
-						onSaved={ ( saved ) => {
-							// The update response has no order history; keep the loaded one.
-							setRecord( ( prev ) => ( { ...prev, ...saved } ) );
-							onSaved( saved );
-						} }
-					/>
-				);
-			} }
-		</SidePanel>
-	);
-}
 
 /**
  * Roles a new member may be given. Staff roles need openbb_manage_access; the
@@ -469,15 +173,30 @@ export default function MembersScreen() {
 	const canEdit = can( 'openbb_edit_members' );
 	const [ guard, discardDialog ] = useDiscardGuard();
 
+	const closePanel = () =>
+		guard( () => {
+			setPanel( null );
+			nav.reset();
+		} );
+	const nav = usePanelStack( {
+		panels: relatedPanels,
+		guard,
+		base: panel ? { type: 'member', id: panel } : null,
+		onClose: closePanel,
+		onSaved: () => list.reload(),
+	} );
+
 	const openPanel = useCallback(
 		( id ) => {
-			if ( id !== panel ) {
-				guard( () => setPanel( id ) );
+			if ( id !== panel || nav.top ) {
+				guard( () => {
+					setPanel( id );
+					nav.reset();
+				} );
 			}
 		},
-		[ panel, guard ]
+		[ panel, guard, nav.top, nav.reset ] // eslint-disable-line react-hooks/exhaustive-deps
 	);
-	const closePanel = () => guard( () => setPanel( null ) );
 
 	const actions = useMemo(
 		() => [
@@ -529,7 +248,8 @@ export default function MembersScreen() {
 	return (
 		<Page
 			title={ __( 'Members', 'open-bulk-buying' ) }
-			sidebar={ sidebar }
+			sidebar={ nav.render( sidebar ) }
+			sidebarSize={ nav.size || 'default' }
 			actions={
 				canEdit && (
 					<Button variant="primary" icon={ plus } onClick={ () => openPanel( 0 ) }>

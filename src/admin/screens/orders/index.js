@@ -10,7 +10,7 @@ import { __, sprintf } from '@wordpress/i18n';
 import { pencil, plus, seen, trash } from '@wordpress/icons';
 import { DataViews } from '@wordpress/dataviews/wp';
 
-import { ConfirmBody, ErrorNotice, Loading, Page, SidePanel } from '../../components';
+import { ConfirmBody, ErrorNotice, Loading, Page, SidePanel, usePanelStack } from '../../components';
 import {
 	discardUnsavedChanges,
 	useDebouncedValue,
@@ -22,6 +22,7 @@ import {
 import { request } from '../../utils/api';
 import { can, config, queryArg, toElements } from '../../utils/config';
 import { formatMoney } from '../../utils/format';
+import relatedPanels from '../related-panels';
 import OrderEditor from './editor';
 
 const LIST_MAPPING = {
@@ -282,15 +283,34 @@ export default function OrdersScreen() {
 	const canEdit = can( 'openbb_edit_orders' );
 	const [ guard, discardDialog ] = useDiscardGuard();
 
-	const openPanel = useCallback(
-		( id ) => {
-			if ( id !== openOrder ) {
-				guard( () => setOpenOrder( id ) );
+	const closePanel = () =>
+		guard( () => {
+			setOpenOrder( null );
+			nav.reset();
+		} );
+	const nav = usePanelStack( {
+		panels: relatedPanels,
+		guard,
+		base: openOrder ? { type: 'order', id: openOrder } : null,
+		onClose: closePanel,
+		onSaved: ( entry, item ) => {
+			if ( entry.type === 'order' ) {
+				list.replaceItem( item );
 			}
 		},
-		[ openOrder, guard ]
+	} );
+
+	const openPanel = useCallback(
+		( id ) => {
+			if ( id !== openOrder || nav.top ) {
+				guard( () => {
+					setOpenOrder( id );
+					nav.reset();
+				} );
+			}
+		},
+		[ openOrder, guard, nav.top, nav.reset ] // eslint-disable-line react-hooks/exhaustive-deps
 	);
-	const closePanel = () => guard( () => setOpenOrder( null ) );
 
 	const fields = useMemo( () => ( cycles ? buildFields( cycles ) : [] ), [ cycles ] );
 
@@ -324,7 +344,10 @@ export default function OrdersScreen() {
 						closeModal={ closeModal }
 						onConfirm={ async () => {
 							await request( `/orders/${ item.id }`, { method: 'DELETE' } );
-							setOpenOrder( ( current ) => ( current === item.id ? null : current ) );
+							if ( item.id === openOrder ) {
+								setOpenOrder( null );
+								nav.reset();
+							}
 							list.reload();
 							notify.success( __( 'Order deleted.', 'open-bulk-buying' ) );
 						} }
@@ -332,7 +355,7 @@ export default function OrdersScreen() {
 				),
 			},
 		],
-		[ canEdit, list, notify, openPanel ]
+		[ canEdit, list, notify, openPanel, openOrder, nav.reset ] // eslint-disable-line react-hooks/exhaustive-deps
 	);
 
 	if ( ! cycles ) {
@@ -373,8 +396,8 @@ export default function OrdersScreen() {
 	return (
 		<Page
 			title={ __( 'Orders', 'open-bulk-buying' ) }
-			sidebarSize={ openOrder ? 'wide' : 'default' }
-			sidebar={ sidebar }
+			sidebarSize={ nav.size || ( openOrder ? 'wide' : 'default' ) }
+			sidebar={ nav.render( sidebar ) }
 			actions={
 				canEdit && (
 					<Button variant="primary" icon={ plus } onClick={ () => openPanel( 0 ) }>

@@ -9,7 +9,7 @@ import { useMemo, useState } from '@wordpress/element';
 import { __, sprintf } from '@wordpress/i18n';
 import { DataViews } from '@wordpress/dataviews/wp';
 
-import { FormModal, ErrorNotice } from '../../components';
+import { FormModal, ErrorNotice, RecordLink } from '../../components';
 import { useList } from '../../hooks';
 import { request, requestKey } from '../../utils/api';
 import { can, config } from '../../utils/config';
@@ -238,10 +238,14 @@ const moveFields = [
 		render: ( { item } ) =>
 			item.order_id ? (
 				<>
-					<a href={ `${ config.urls.orders }&order=${ item.order_id }` }>
+					<RecordLink
+						type="order"
+						id={ item.order_id }
+						href={ `${ config.urls.orders }&order=${ item.order_id }` }
+					>
 						{ /* translators: %d: order number. */ }
 						{ sprintf( __( 'Order #%d', 'open-bulk-buying' ), item.order_id ) }
-					</a>{ ' ' }
+					</RecordLink>{ ' ' }
 					{ item.note }
 				</>
 			) : (

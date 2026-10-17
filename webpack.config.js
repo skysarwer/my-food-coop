@@ -23,11 +23,6 @@ module.exports = {
 		: classicConfig.devtool,
 	entry: {
 		'admin/index': path.resolve( process.cwd(), 'src/admin', 'index.js' ),
-		'sass/admin': path.resolve(
-			process.cwd(),
-			'src/sass',
-			'admin.scss'
-		),
 	},
 	output: {
 		...classicConfig.output,

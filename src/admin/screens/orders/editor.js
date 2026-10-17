@@ -14,7 +14,7 @@ import { __, sprintf } from '@wordpress/i18n';
 import { dateI18n, getSettings } from '@wordpress/date';
 import { closeSmall } from '@wordpress/icons';
 
-import { ErrorNotice, SidePanel } from '../../components';
+import { ErrorNotice, RecordLink, SidePanel } from '../../components';
 import { discardUnsavedChanges, useDebouncedValue, useUnsavedChanges } from '../../hooks';
 import { request } from '../../utils/api';
 import { can, config } from '../../utils/config';
@@ -354,7 +354,18 @@ export default function OrderEditor( { orderId, onClose, onSaved } ) {
 					<dd>{ order.cycle_name }</dd>
 					<dt>{ __( 'Member', 'open-bulk-buying' ) }</dt>
 					<dd>
-						{ order.member.name } { order.member.email && `(${ order.member.email })` }
+						{ order.member.id && can( 'openbb_view_members' ) ? (
+							<RecordLink
+								type="member"
+								id={ order.member.id }
+								href={ `${ config.urls.members }&member=${ order.member.id }` }
+							>
+								{ order.member.name }
+							</RecordLink>
+						) : (
+							order.member.name
+						) }{ ' ' }
+						{ order.member.email && `(${ order.member.email })` }
 					</dd>
 					<dt>{ __( 'Submitted', 'open-bulk-buying' ) }</dt>
 					<dd>{ date( order.submitted_at ) }</dd>

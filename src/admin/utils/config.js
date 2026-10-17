@@ -19,6 +19,8 @@ export const config = {
 	manualStockReasons: boot.manualStockReasons || [],
 	caps: boot.caps || {},
 	urls: boot.urls || {},
+	// Screens the user can open, in menu order: { name, slug, title, url }.
+	screens: boot.screens || [],
 };
 
 export const can = ( cap ) => !! config.caps[ cap ];

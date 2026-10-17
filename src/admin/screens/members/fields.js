@@ -1,0 +1,137 @@
+import { __ } from '@wordpress/i18n';
+import { dateI18n, getSettings } from '@wordpress/date';
+
+import { config, languageLabel, toElements } from '../../utils/config';
+
+export const formatDate = ( value ) =>
+	value ? dateI18n( getSettings().formats.date, value ) : '—';
+
+const languageElements = config.languages.map( ( lang ) => ( {
+	value: lang,
+	label: languageLabel( lang ),
+} ) );
+
+export const memberFields = [
+	{
+		id: 'display_name',
+		label: __( 'Name', 'open-bulk-buying' ),
+		type: 'text',
+		enableHiding: false,
+		filterBy: false,
+	},
+	{
+		id: 'email',
+		label: __( 'Email', 'open-bulk-buying' ),
+		type: 'email',
+		filterBy: false,
+	},
+	{
+		id: 'first_name',
+		label: __( 'First name', 'open-bulk-buying' ),
+		type: 'text',
+		enableSorting: false,
+		filterBy: false,
+	},
+	{
+		id: 'last_name',
+		label: __( 'Last name', 'open-bulk-buying' ),
+		type: 'text',
+		enableSorting: false,
+		filterBy: false,
+	},
+	{
+		id: 'phone',
+		label: __( 'Phone', 'open-bulk-buying' ),
+		type: 'telephone',
+		enableSorting: false,
+		filterBy: false,
+	},
+	{
+		id: 'language',
+		label: __( 'Language', 'open-bulk-buying' ),
+		type: 'text',
+		...( languageElements.length
+			? {
+					Edit: 'select',
+					elements: [
+						{ value: '', label: __( 'Site default', 'open-bulk-buying' ) },
+						...languageElements,
+					],
+			  }
+			: {} ),
+		render: ( { item } ) => ( item.language ? languageLabel( item.language ) : '' ),
+		enableSorting: false,
+		filterBy: false,
+	},
+	{
+		id: 'coop_role',
+		label: __( 'Role', 'open-bulk-buying' ),
+		type: 'text',
+		Edit: 'select',
+		elements: toElements( config.coopRoles ),
+		render: ( { item } ) => (
+			<>
+				<span className={ `openbb-badge openbb-badge--role-${ item.coop_role }` }>
+					{ item.coop_role_label }
+				</span>
+				{ item.grant_labels?.length > 0 && (
+					<span className="openbb-muted"> + { item.grant_labels.join( ', ' ) }</span>
+				) }
+			</>
+		),
+		filterBy: { operators: [ 'isAny' ], isPrimary: true },
+		enableSorting: false,
+	},
+	{
+		id: 'orders_count',
+		label: __( 'Orders', 'open-bulk-buying' ),
+		type: 'integer',
+		readOnly: true,
+		enableSorting: false,
+		filterBy: false,
+	},
+	{
+		id: 'last_order_at',
+		label: __( 'Last order', 'open-bulk-buying' ),
+		type: 'datetime',
+		readOnly: true,
+		render: ( { item } ) => formatDate( item.last_order_at ),
+		enableSorting: false,
+		filterBy: false,
+	},
+	{
+		id: 'joined_at',
+		label: __( 'Joined', 'open-bulk-buying' ),
+		type: 'datetime',
+		readOnly: true,
+		render: ( { item } ) => formatDate( item.joined_at ),
+		filterBy: false,
+	},
+	{
+		id: 'rules_accepted',
+		label: __( 'Rules', 'open-bulk-buying' ),
+		type: 'boolean',
+		readOnly: true,
+		render: ( { item } ) =>
+			item.rules_accepted
+				? __( 'Accepted', 'open-bulk-buying' )
+				: __( 'Not accepted', 'open-bulk-buying' ),
+		enableSorting: false,
+		filterBy: false,
+	},
+];
+
+export const memberForm = {
+	layout: { type: 'regular', labelPosition: 'top' },
+	fields: [
+		{
+			id: 'names',
+			label: __( 'Name', 'open-bulk-buying' ),
+			layout: { type: 'row' },
+			children: [ 'first_name', 'last_name' ],
+		},
+		'phone',
+		'language',
+		'coop_role',
+	],
+};

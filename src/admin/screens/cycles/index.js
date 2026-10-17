@@ -6,6 +6,7 @@ import { DataViews } from '@wordpress/dataviews/wp';
 
 import { ConfirmBody, EditForm, ErrorNotice, Page, SidePanel } from '../../components';
 import { useDiscardGuard, useList, useNotify } from '../../hooks';
+import { Link, navigate } from '../../router';
 import { request } from '../../utils/api';
 import { can, config, languageLabel, toElements } from '../../utils/config';
 import { formatMoney } from '../../utils/format';
@@ -122,9 +123,9 @@ const cycleFields = [
 		readOnly: true,
 		render: ( { item } ) =>
 			can( 'openbb_view_orders' ) ? (
-				<a href={ `${ config.urls.orders }&cycle=${ item.id }` }>
+				<Link href={ `${ config.urls.orders }&cycle=${ item.id }` }>
 					{ item.orders_count }
-				</a>
+				</Link>
 			) : (
 				item.orders_count
 			),
@@ -232,9 +233,9 @@ function CycleSummary( { cycle } ) {
 			<dt>{ __( 'Orders', 'open-bulk-buying' ) }</dt>
 			<dd>
 				{ can( 'openbb_view_orders' ) ? (
-					<a href={ `${ config.urls.orders }&cycle=${ cycle.id }` }>
+					<Link href={ `${ config.urls.orders }&cycle=${ cycle.id }` }>
 						{ cycle.orders_count }
-					</a>
+					</Link>
 				) : (
 					cycle.orders_count
 				) }
@@ -346,7 +347,7 @@ export default function CyclesScreen() {
 							label: __( 'View orders', 'open-bulk-buying' ),
 							isEligible: () => can( 'openbb_view_orders' ),
 							callback: ( [ item ] ) => {
-								window.location.href = `${ config.urls.orders }&cycle=${ item.id }`;
+								navigate( `${ config.urls.orders }&cycle=${ item.id }` );
 							},
 						},
 						{

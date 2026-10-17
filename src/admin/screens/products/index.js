@@ -18,11 +18,13 @@ import {
 	Loading,
 	Page,
 	SidePanel,
+	usePanelStack,
 } from '../../components';
 import { useDiscardGuard, useList, useNotify, useRecord } from '../../hooks';
 import { request } from '../../utils/api';
 import runForEach from '../../utils/run-for-each';
 import { can, queryArg } from '../../utils/config';
+import relatedPanels from '../related-panels';
 import { buildProductFields, NEW_PRODUCT, productForm, WRITABLE } from './fields';
 import { AdjustStockModal, InventoryPanel } from './inventory';
 
@@ -224,13 +226,30 @@ export default function ProductsScreen() {
 	const notify = useNotify();
 	const [ guard, discardDialog ] = useDiscardGuard();
 
+	const closePanel = () =>
+		guard( () => {
+			setPanel( null );
+			nav.reset();
+		} );
+	const nav = usePanelStack( {
+		panels: relatedPanels,
+		guard,
+		base: panel?.id ? { type: 'product', id: panel.id } : null,
+		onClose: closePanel,
+		// An order edit changes reserved stock.
+		onSaved: () => list.reload(),
+	} );
+
 	const openPanel = useCallback(
 		( next ) => {
-			if ( panel?.id !== next.id || panel?.tab !== next.tab ) {
-				guard( () => setPanel( next ) );
+			if ( panel?.id !== next.id || panel?.tab !== next.tab || nav.top ) {
+				guard( () => {
+					setPanel( next );
+					nav.reset();
+				} );
 			}
 		},
-		[ panel, guard ]
+		[ panel, guard, nav.top, nav.reset ] // eslint-disable-line react-hooks/exhaustive-deps
 	);
 
 	const fields = useMemo(
@@ -323,6 +342,7 @@ export default function ProductsScreen() {
 							await request( `/products/${ item.id }`, { method: 'DELETE' } );
 							if ( panel?.id === item.id ) {
 								setPanel( null );
+								nav.reset();
 							}
 							list.reload();
 							notify.success( __( 'Product deleted.', 'open-bulk-buying' ) );
@@ -331,7 +351,7 @@ export default function ProductsScreen() {
 				),
 			},
 		],
-		[ list, notify, setActive, panel, openPanel ]
+		[ list, notify, setActive, panel, openPanel, nav.reset ] // eslint-disable-line react-hooks/exhaustive-deps
 	);
 
 	if ( ! terms ) {
@@ -355,14 +375,15 @@ export default function ProductsScreen() {
 					</Button>
 				</>
 			}
-			sidebar={
+			sidebarSize={ nav.size || 'default' }
+			sidebar={ nav.render(
 				panel && (
 					<ProductPanel
 						key={ `${ panel.id }-${ panel.tab }` }
 						productId={ panel.id }
 						tab={ panel.tab }
 						fields={ fields }
-						onClose={ () => guard( () => setPanel( null ) ) }
+						onClose={ closePanel }
 						onSaved={ ( item, isNew ) => {
 							if ( isNew ) {
 								setPanel( { id: item.id, tab: 'details' } );
@@ -375,7 +396,7 @@ export default function ProductsScreen() {
 						} }
 					/>
 				)
-			}
+			) }
 		>
 			<ErrorNotice error={ list.error } />
 			{ discardDialog }

@@ -1,8 +1,8 @@
 <?php
 /**
  * Co-op admin screens: a "Co-op" menu whose pages all mount the React admin app
- * (src/admin, built to build/admin), plus the block editor stylesheet. The app's
- * router switches between screens client-side; each page still loads on its own.
+ * (src/admin, built to build/admin). The app's router switches between screens
+ * client-side; each page still loads on its own.
  *
  * Every screen talks to the openbb/v1 REST API, which enforces permissions; the
  * menu capabilities here only decide what is shown.
@@ -37,7 +37,6 @@ class OPENBB_Admin {
 	public static function register_hooks(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'add_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
-		add_action( 'enqueue_block_assets', array( __CLASS__, 'enqueue_block_editor_styles' ) );
 	}
 
 	public static function add_menu(): void {
@@ -135,10 +134,8 @@ class OPENBB_Admin {
 		if ( file_exists( OPENBB_PLUGIN_DIR . 'build/admin/style-index.css' ) ) {
 			wp_enqueue_style( 'openbb-admin', OPENBB_PLUGIN_URL . 'build/admin/style-index.css', array( 'wp-components' ), $asset['version'] );
 			wp_style_add_data( 'openbb-admin', 'rtl', 'replace' );
-			self::enqueue_admin_ui_style( array( 'openbb-admin' ) );
 		} else {
 			wp_enqueue_style( 'wp-components' );
-			self::enqueue_admin_ui_style( array( 'wp-components' ) );
 		}
 	}
 
@@ -204,32 +201,5 @@ class OPENBB_Admin {
 			'urls'                 => $urls,
 			'screens'              => $screens,
 		);
-	}
-
-	/**
-	 * Editor-only styles for the plugin's blocks, mirroring Subtle Blocks: loaded in
-	 * the editor (and its iframe) but not on the front end.
-	 */
-	public static function enqueue_block_editor_styles(): void {
-		if ( ! is_admin() ) {
-			return;
-		}
-
-		self::enqueue_admin_ui_style( array( 'wp-edit-blocks' ) );
-	}
-
-	/**
-	 * The hand-written admin stylesheet (src/sass/admin.scss), shared by the Co-op
-	 * screens and the block editor. Loaded after `$deps` so its rules win.
-	 */
-	private static function enqueue_admin_ui_style( array $deps ): void {
-		$file = 'build/sass/admin.css';
-		if ( ! file_exists( OPENBB_PLUGIN_DIR . $file ) ) {
-			return;
-		}
-
-		// Not the .asset.php version: for a CSS-only entry it hashes the empty JS file.
-		wp_enqueue_style( 'openbb-admin-ui', OPENBB_PLUGIN_URL . $file, $deps, (string) filemtime( OPENBB_PLUGIN_DIR . $file ) );
-		wp_style_add_data( 'openbb-admin-ui', 'rtl', 'replace' );
 	}
 }
