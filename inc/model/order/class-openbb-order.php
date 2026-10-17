@@ -75,6 +75,30 @@ class OPENBB_Order extends OPENBB_Entity {
 		return $this->lines;
 	}
 
+	/**
+	 * Translated status labels. Only call from UI code.
+	 */
+	public static function status_labels(): array {
+		return array(
+			self::STATUS_DRAFT     => __( 'Draft', 'open-bulk-buying' ),
+			self::STATUS_SUBMITTED => __( 'Submitted', 'open-bulk-buying' ),
+			self::STATUS_CANCELLED => __( 'Cancelled', 'open-bulk-buying' ),
+			self::STATUS_COMPLETED => __( 'Completed', 'open-bulk-buying' ),
+		);
+	}
+
+	/**
+	 * Translated aid status labels. Only call from UI code.
+	 */
+	public static function aid_status_labels(): array {
+		return array(
+			self::AID_NONE     => __( 'None', 'open-bulk-buying' ),
+			self::AID_PENDING  => __( 'Pending', 'open-bulk-buying' ),
+			self::AID_APPROVED => __( 'Approved', 'open-bulk-buying' ),
+			self::AID_DECLINED => __( 'Declined', 'open-bulk-buying' ),
+		);
+	}
+
 	public function is_collected(): bool {
 		return null !== $this->collected_at;
 	}
@@ -122,6 +146,67 @@ class OPENBB_Order extends OPENBB_Entity {
 				'%d', '%d', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s',
 			)
 		);
+	}
+
+	/**
+	 * Saves this order, writes $lines and deletes $delete_line_ids in one transaction,
+	 * then recalculates the stored totals from the resulting lines. New orders are
+	 * inserted first so new lines can reference them.
+	 *
+	 * Persistence only: callers check permissions, availability and line eligibility.
+	 *
+	 * @param OPENBB_Order_Line[] $lines           Lines to insert or update.
+	 * @param int[]               $delete_line_ids Existing lines of this order to remove.
+	 */
+	public function save_with_lines( array $lines, array $delete_line_ids = array() ): bool {
+		global $wpdb;
+
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			return false;
+		}
+
+		$was_new     = empty( $this->id );
+		$this->lines = null;
+		$saved       = $this->save();
+		foreach ( $lines as $line ) {
+			if ( ! $saved ) {
+				break;
+			}
+			if ( $line->id && $line->order_id !== (int) $this->id ) {
+				$saved = false;
+				break;
+			}
+			$line->order_id = (int) $this->id;
+			$saved          = $line->write_row();
+		}
+		foreach ( $delete_line_ids as $line_id ) {
+			if ( ! $saved ) {
+				break;
+			}
+			$saved = 1 === $wpdb->delete(
+				$wpdb->openbb_order_lines,
+				array(
+					'id'       => (int) $line_id,
+					'order_id' => (int) $this->id,
+				),
+				array( '%d', '%d' )
+			);
+		}
+
+		// Reload the lines inside the transaction so totals reflect exactly what was written.
+		$this->lines = null;
+		if ( ! $saved || ! $this->save() || false === $wpdb->query( 'COMMIT' ) ) {
+			$wpdb->query( 'ROLLBACK' );
+			$this->lines = null;
+			if ( $was_new ) {
+				$this->id = 0;
+			}
+			return false;
+		}
+
+		$this->lines = null;
+
+		return true;
 	}
 
 	/**

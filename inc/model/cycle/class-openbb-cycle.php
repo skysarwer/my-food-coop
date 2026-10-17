@@ -91,6 +91,19 @@ class OPENBB_Cycle extends OPENBB_Entity {
 		return true;
 	}
 
+	/**
+	 * Translated status labels in lifecycle order. Only call from UI code.
+	 */
+	public static function status_labels(): array {
+		return array(
+			self::STATUS_SETUP        => __( 'Setup', 'open-bulk-buying' ),
+			self::STATUS_ORDERING     => __( 'Ordering', 'open-bulk-buying' ),
+			self::STATUS_PROCESSING   => __( 'Processing', 'open-bulk-buying' ),
+			self::STATUS_DISTRIBUTION => __( 'Distribution', 'open-bulk-buying' ),
+			self::STATUS_COMPLETE     => __( 'Complete', 'open-bulk-buying' ),
+		);
+	}
+
 	public function is_active(): bool {
 		return in_array( $this->status, self::ACTIVE_STATUSES, true );
 	}

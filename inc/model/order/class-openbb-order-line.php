@@ -70,6 +70,25 @@ class OPENBB_Order_Line extends OPENBB_Entity {
 			return false;
 		}
 
+		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+			return false;
+		}
+
+		if ( ! $this->write_row() || ! $order->save() || false === $wpdb->query( 'COMMIT' ) ) {
+			$wpdb->query( 'ROLLBACK' );
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Writes only this line's row. The caller owns the transaction and must save the
+	 * parent order afterwards so its totals match (see OPENBB_Order::save_with_lines()).
+	 */
+	public function write_row(): bool {
+		global $wpdb;
+
 		$now = current_time( 'mysql', true );
 		if ( ! $this->created_at ) {
 			$this->created_at = $now;
@@ -77,11 +96,7 @@ class OPENBB_Order_Line extends OPENBB_Entity {
 		$this->updated_at = $now;
 		$this->line_total = $this->calculate_total();
 
-		if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
-			return false;
-		}
-
-		$saved = $this->save_row(
+		return $this->save_row(
 			$wpdb->openbb_order_lines,
 			array(
 				'order_id'         => $this->order_id,
@@ -107,13 +122,6 @@ class OPENBB_Order_Line extends OPENBB_Entity {
 				'%d', '%f', '%f', '%f', '%d', '%s', '%s',
 			)
 		);
-
-		if ( ! $saved || ! $order->save() || false === $wpdb->query( 'COMMIT' ) ) {
-			$wpdb->query( 'ROLLBACK' );
-			return false;
-		}
-
-		return true;
 	}
 
 	/**

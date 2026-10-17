@@ -17,6 +17,24 @@ class OPENBB_Stock_Move extends OPENBB_Entity {
 	const REASON_SPOILAGE     = 'spoilage';
 	const REASON_DISTRIBUTION = 'distribution';
 
+	/**
+	 * Reasons staff may record by hand. Distribution can also be recorded by hand
+	 * (e.g. stock handed out outside an order).
+	 */
+	const MANUAL_REASONS = array( self::REASON_RECEIPT, self::REASON_ADJUSTMENT, self::REASON_SPOILAGE, self::REASON_DISTRIBUTION );
+
+	/**
+	 * Translated reason labels. Only call from UI code.
+	 */
+	public static function reason_labels(): array {
+		return array(
+			self::REASON_RECEIPT      => __( 'Receipt', 'open-bulk-buying' ),
+			self::REASON_ADJUSTMENT   => __( 'Adjustment', 'open-bulk-buying' ),
+			self::REASON_SPOILAGE     => __( 'Spoilage', 'open-bulk-buying' ),
+			self::REASON_DISTRIBUTION => __( 'Distribution', 'open-bulk-buying' ),
+		);
+	}
+
 	public $id          = 0;
 	public $product_id  = 0;
 	public $quantity    = 0.0;
